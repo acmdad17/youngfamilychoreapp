@@ -9,290 +9,309 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Young Fam">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0d1117;
-    --surface: #161b22;
-    --surface2: #21262d;
-    --border: #30363d;
-    --brooke: #ff7eb3;
-    --audrey: #ffd166;
-    --christian: #06d6a0;
-    --mitchum: #4fc3f7;
-    --bradford: #ff8c42;
-    --text: #e6edf3;
-    --muted: #8b949e;
+    --bg:#0d1117; --surface:#161b22; --surface2:#21262d; --border:#30363d;
+    --brooke:#ff7eb3; --audrey:#ffd166; --christian:#06d6a0; --mitchum:#4fc3f7; --bradford:#ff8c42;
+    --text:#e6edf3; --muted:#8b949e; --accent:#06d6a0;
   }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Nunito', sans-serif;
-    min-height: 100vh;
-    background-image: radial-gradient(ellipse at 20% 10%, rgba(255,126,179,0.07) 0%, transparent 50%),
-                      radial-gradient(ellipse at 80% 80%, rgba(6,214,160,0.07) 0%, transparent 50%);
+  /* ── WELCOME ── */
+  #welcome-screen{
+    position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:var(--bg);
+    background-image:radial-gradient(ellipse at 15% 15%,rgba(255,126,179,.12) 0%,transparent 50%),
+      radial-gradient(ellipse at 85% 85%,rgba(6,214,160,.12) 0%,transparent 50%),
+      radial-gradient(ellipse at 85% 15%,rgba(255,209,102,.08) 0%,transparent 40%),
+      radial-gradient(ellipse at 15% 85%,rgba(79,195,247,.08) 0%,transparent 40%);
+    padding:24px;transition:opacity .5s,transform .5s;
   }
+  #welcome-screen.hidden{opacity:0;transform:scale(1.03);pointer-events:none;}
+  .welcome-logo{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.5rem,8vw,5rem);letter-spacing:4px;
+    background:linear-gradient(135deg,#ff7eb3,#ffd166,#06d6a0,#4fc3f7);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:4px;}
+  .welcome-sub{color:var(--muted);font-size:.95rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:48px;text-align:center;}
+  .welcome-prompt{font-size:1.1rem;font-weight:700;margin-bottom:24px;text-align:center;}
+  .member-picker{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:560px;width:100%;}
+  .member-pick-btn{background:var(--surface);border:2px solid var(--border);border-radius:20px;padding:24px 16px;
+    cursor:pointer;transition:all .25s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;}
+  .member-pick-btn:hover{transform:translateY(-4px);}
+  .member-pick-btn.bradford:hover{border-color:var(--bradford);box-shadow:0 8px 24px rgba(255,140,66,.2);}
+  .member-pick-btn.brooke:hover{border-color:var(--brooke);box-shadow:0 8px 24px rgba(255,126,179,.2);}
+  .member-pick-btn.audrey:hover{border-color:var(--audrey);box-shadow:0 8px 24px rgba(255,209,102,.2);}
+  .member-pick-btn.christian:hover{border-color:var(--christian);box-shadow:0 8px 24px rgba(6,214,160,.2);}
+  .member-pick-btn.mitchum:hover{border-color:var(--mitchum);box-shadow:0 8px 24px rgba(79,195,247,.2);}
+  .pick-avatar{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.6rem;}
+  .pick-name{font-weight:800;font-size:1rem;}
+  .pick-role{font-size:.72rem;color:var(--muted);line-height:1.3;}
+  .guest-btn{margin-top:24px;background:transparent;border:1px solid var(--border);border-radius:12px;padding:10px 28px;
+    color:var(--muted);font-family:'Nunito',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;}
+  .guest-btn:hover{border-color:var(--muted);color:var(--text);}
 
-  header {
-    padding: 24px 32px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-    gap: 12px;
+  /* ── WHAT'S NEW MODAL ── */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .modal-backdrop.open{opacity:1;pointer-events:all;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;
+    width:460px;max-width:95vw;display:flex;flex-direction:column;gap:16px;transform:translateY(20px);transition:transform .2s;}
+  .modal-backdrop.open .modal{transform:translateY(0);}
+  .modal h2{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:2px;}
+  .form-group{display:flex;flex-direction:column;gap:6px;}
+  .form-group label{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .form-group input,.form-group select,.form-group textarea{background:var(--surface2);border:1px solid var(--border);
+    border-radius:10px;padding:10px 14px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.9rem;outline:none;transition:border-color .2s;}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#06d6a0;}
+  .form-group select option{background:var(--surface2);}
+  .form-group textarea{resize:vertical;min-height:72px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+
+  /* ── APP SHELL ── */
+  #app{display:none;flex-direction:column;min-height:100vh;}
+  #app.visible{display:flex;}
+  header{padding:18px 32px 14px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px;background:var(--bg);position:sticky;top:0;z-index:50;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .logo{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:2px;
+    background:linear-gradient(135deg,#ff7eb3,#ffd166,#06d6a0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .current-user-badge{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+    border-radius:20px;padding:6px 14px 6px 8px;cursor:pointer;transition:all .2s;}
+  .current-user-badge:hover{border-color:var(--accent);}
+  .cu-dot{width:10px;height:10px;border-radius:50%;}
+  .cu-name{font-weight:700;font-size:.85rem;}
+  .cu-switch{font-size:.7rem;color:var(--muted);}
+  .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .date-display{font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:1px;text-transform:uppercase;}
+  #weather-widget{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    padding:8px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:border-color .2s;}
+  #weather-widget:hover{border-color:var(--bradford);}
+  #weather-icon{font-size:1.2rem;}#weather-temp{font-weight:700;font-size:1rem;}
+  .btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);
+    font-family:'Nunito',sans-serif;font-size:.82rem;font-weight:700;padding:7px 14px;cursor:pointer;transition:all .2s;}
+  .btn:hover{background:#2d333b;border-color:#06d6a0;}
+  .btn-primary{background:rgba(6,214,160,.15);border-color:#06d6a0;color:#06d6a0;}
+  .btn-primary:hover{background:rgba(6,214,160,.25);}
+  .btn-danger{background:rgba(255,107,107,.1);border-color:#ff6b6b;color:#ff6b6b;}
+  .btn-danger:hover{background:rgba(255,107,107,.2);}
+  .notif-btn{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;
+    cursor:pointer;transition:all .2s;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;color:var(--text);}
+  .notif-btn:hover{border-color:#ffd166;}
+  .notif-btn.enabled{border-color:#06d6a0;color:#06d6a0;background:rgba(6,214,160,.1);}
+  .notif-btn.denied{border-color:#ff6b6b;color:#ff6b6b;}
+
+  /* ── MY DAY BANNER ── */
+  #my-day-banner{margin:20px 32px 0;border-radius:16px;padding:18px 24px;
+    display:flex;align-items:center;gap:16px;border:1px solid var(--border);animation:fadeIn .4s ease;}
+  .mdb-avatar{font-size:2rem;}
+  .mdb-greeting{font-size:1.1rem;font-weight:800;}
+  .mdb-summary{font-size:.85rem;color:var(--muted);margin-top:2px;}
+  .mdb-events{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .mdb-chip{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;}
+
+  /* ── MAIN GRID ── */
+  .main{padding:20px 32px 32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+  .week-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+  .day-col{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:12px 8px;cursor:pointer;transition:all .2s;min-height:100px;}
+  .day-col:hover{border-color:#4fc3f7;transform:translateY(-2px);}
+  .day-col.today{border-color:#ffd166;background:#21262d;}
+  .day-col.selected{border-color:#06d6a0;box-shadow:0 0 0 2px rgba(6,214,160,.2);}
+  .day-name{font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:1px;color:var(--muted);text-align:center;}
+  .day-num{font-size:1.4rem;font-weight:700;text-align:center;margin:2px 0 8px;}
+  .day-col.today .day-num{color:#ffd166;}
+  .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
+  .dot{width:8px;height:8px;border-radius:50%;}
+  .day-event-list{margin-top:4px;display:flex;flex-direction:column;gap:3px;}
+  .day-event-chip{font-size:.6rem;font-weight:700;padding:2px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px;}
+  .panel-title{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:1.5px;color:var(--muted);
+    border-bottom:1px solid var(--border);padding-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+  .members-panel{grid-column:1/3;}
+  .members-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .member-card{background:var(--surface2);border-radius:12px;padding:14px;border-left:4px solid;transition:transform .2s;}
+  .member-card:hover{transform:translateY(-2px);}
+  .member-card.brooke{border-color:var(--brooke)}.member-card.audrey{border-color:var(--audrey)}
+  .member-card.christian{border-color:var(--christian)}.member-card.mitchum{border-color:var(--mitchum)}
+  .member-card.bradford{border-color:var(--bradford)}
+  .member-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .member-name{font-weight:800;font-size:1rem;display:flex;align-items:center;gap:6px;}
+  .me-tag{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(6,214,160,.2);color:#06d6a0;}
+  .member-role{font-size:.72rem;color:var(--muted);margin-bottom:6px;}
+  .status-badge{font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;}
+  .status-home{background:rgba(6,214,160,.15);color:#06d6a0;}
+  .status-away{background:rgba(255,126,179,.15);color:#ff7eb3;}
+  .status-work{background:rgba(255,209,102,.15);color:#ffd166;}
+  .member-events{display:flex;flex-direction:column;gap:4px;max-height:80px;overflow-y:auto;}
+  .event-item{font-size:.75rem;display:flex;align-items:center;gap:6px;padding:3px 0;}
+  .event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .event-text{color:var(--muted);}
+  .event-time{color:var(--text);font-weight:600;white-space:nowrap;}
+
+  /* ── CHORES ── */
+  .chores-panel{grid-column:3/4;}
+  .chore-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);transition:background .2s;}
+  .chore-item:hover{background:#2d333b;}
+  .chore-check{width:18px;height:18px;border-radius:5px;border:2px solid var(--border);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;transition:all .2s;}
+  .chore-check.done{background:#06d6a0;border-color:#06d6a0;color:#0d1117;}
+  .chore-label{font-size:.85rem;flex:1;}
+  .chore-label.done{text-decoration:line-through;color:var(--muted);}
+  .chore-assign{font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;}
+  .add-chore-row{display:flex;gap:8px;}
+  .add-chore-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
+  .add-chore-row input:focus{border-color:#06d6a0;}
+
+  /* ── GROCERY LIST ── */
+  .grocery-panel{grid-column:3/4;}
+  .grocery-categories{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+  .cat-chip{font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:20px;cursor:pointer;
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .2s;}
+  .cat-chip.active{border-color:#ffd166;color:#ffd166;background:rgba(255,209,102,.1);}
+  .grocery-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);transition:background .2s;}
+  .grocery-item:hover{background:#2d333b;}
+  .grocery-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;transition:all .2s;}
+  .grocery-check.got{background:#ffd166;border-color:#ffd166;color:#0d1117;}
+  .grocery-label{font-size:.85rem;flex:1;}
+  .grocery-label.got{text-decoration:line-through;color:var(--muted);}
+  .grocery-cat-badge{font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(255,209,102,.1);color:#ffd166;}
+  .add-grocery-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .add-grocery-row input{flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
+  .add-grocery-row input:focus{border-color:#ffd166;}
+  .grocery-count{font-size:.75rem;color:var(--muted);}
+
+  /* ── HOME ASSISTANT ── */
+  .ha-panel{grid-column:1/3;}
+  .ha-setup{text-align:center;padding:16px;color:var(--muted);font-size:.85rem;}
+  .ha-setup a{color:#06d6a0;text-decoration:none;}
+  .ha-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+  .ha-tile{background:var(--surface2);border:1px solid var(--border);border-radius:14px;
+    padding:16px 12px;cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .ha-tile:hover{transform:translateY(-2px);border-color:#4fc3f7;}
+  .ha-tile.on{border-color:#ffd166;background:rgba(255,209,102,.07);}
+  .ha-tile.unavailable{opacity:.4;cursor:default;}
+  .ha-icon{font-size:1.8rem;}
+  .ha-name{font-size:.78rem;font-weight:700;color:var(--text);}
+  .ha-state{font-size:.68rem;color:var(--muted);text-transform:capitalize;}
+  .ha-state.on{color:#ffd166;}
+  .ha-state.off{color:var(--muted);}
+  .ha-config-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .ha-config-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
+  .ha-config-row input:focus{border-color:#4fc3f7;}
+  .ha-status{font-size:.72rem;display:flex;align-items:center;gap:5px;}
+  .ha-dot{width:7px;height:7px;border-radius:50%;background:#8b949e;}
+  .ha-dot.connected{background:#06d6a0;}
+  .ha-dot.error{background:#ff6b6b;}
+
+  /* ── SELECTED DAY ── */
+  .selected-day-panel{grid-column:1/3;animation:fadeIn .3s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .selected-events-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;}
+  .sel-event{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:10px;border-left:3px solid;}
+  .sel-event.mine{background:#1e2a1e;}
+  .sel-event-time{font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;min-width:60px;}
+  .sel-event-title{font-size:.9rem;font-weight:600;}
+  .sel-event-person{font-size:.72rem;}
+  .delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;transition:color .2s;}
+  .delete-btn:hover{color:#ff6b6b;}
+  .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;}
+
+  /* ── TOAST ── */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 20px;
+    font-size:.85rem;font-weight:600;transition:transform .3s;z-index:300;white-space:nowrap;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+
+  @media(max-width:900px){
+    .main{grid-template-columns:1fr 1fr;padding:16px;}
+    .members-panel,.chores-panel,.grocery-panel,.ha-panel,.selected-day-panel{grid-column:1/-1;}
+    .day-event-chip{display:none;}
+    #my-day-banner{margin:16px 16px 0;}
   }
-
-  .logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.2rem;
-    letter-spacing: 2px;
-    background: linear-gradient(135deg, #ff7eb3, #ffd166, #06d6a0);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  @media(max-width:600px){
+    .main{grid-template-columns:1fr;padding:12px;}
+    .members-grid{grid-template-columns:1fr;}
+    .member-picker{grid-template-columns:1fr 1fr;}
+    .week-strip{gap:3px;}
+    .day-col{padding:8px 4px;}
+    .day-name{font-size:.7rem;}
+    .day-num{font-size:1rem;}
+    header{padding:14px 16px;}
+    .logo{font-size:1.5rem;}
+    #my-day-banner{margin:12px 12px 0;}
   }
-
-  .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .date-display { font-size: 0.85rem; color: var(--muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-
-  #weather-widget {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 10px 16px; display: flex; align-items: center; gap: 10px;
-    cursor: pointer; transition: border-color 0.2s; min-width: 160px;
-  }
-  #weather-widget:hover { border-color: var(--bradford); }
-  #weather-icon { font-size: 1.4rem; }
-  #weather-temp { font-weight: 700; font-size: 1.1rem; }
-
-  .notif-btn {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 10px 14px; display: flex; align-items: center; gap: 7px;
-    cursor: pointer; transition: all 0.2s; font-family: 'Nunito', sans-serif;
-    font-size: 0.82rem; font-weight: 700; color: var(--text);
-  }
-  .notif-btn:hover { border-color: #ffd166; }
-  .notif-btn.enabled { border-color: #06d6a0; color: #06d6a0; background: rgba(6,214,160,0.1); }
-  .notif-btn.denied { border-color: #ff6b6b; color: #ff6b6b; background: rgba(255,107,107,0.1); }
-
-  .install-btn {
-    background: rgba(255,209,102,0.15); border: 1px solid #ffd166; border-radius: 12px;
-    padding: 10px 14px; font-family: 'Nunito', sans-serif; font-size: 0.82rem;
-    font-weight: 700; color: #ffd166; cursor: pointer; transition: all 0.2s;
-    display: none;
-  }
-  .install-btn:hover { background: rgba(255,209,102,0.25); }
-  .install-btn.visible { display: block; }
-
-  .main { padding: 24px 32px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-
-  .week-strip { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-
-  .day-col {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-    padding: 12px 8px; cursor: pointer; transition: all 0.2s; min-height: 100px;
-  }
-  .day-col:hover { border-color: #4fc3f7; transform: translateY(-2px); }
-  .day-col.today { border-color: #ffd166; background: #21262d; }
-  .day-col.selected { border-color: #06d6a0; box-shadow: 0 0 0 2px rgba(6,214,160,0.2); }
-
-  .day-name { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 1px; color: var(--muted); text-align: center; }
-  .day-num { font-size: 1.4rem; font-weight: 700; text-align: center; margin: 2px 0 8px; }
-  .day-col.today .day-num { color: #ffd166; }
-  .day-dots { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .day-event-list { margin-top: 4px; display: flex; flex-direction: column; gap: 3px; }
-  .day-event-chip { font-size: 0.6rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .panel-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 1.5px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
-
-  .members-panel { grid-column: 1 / 3; }
-  .members-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-  .member-card { background: var(--surface2); border-radius: 12px; padding: 14px; border-left: 4px solid; transition: transform 0.2s; }
-  .member-card:hover { transform: translateY(-2px); }
-  .member-card.brooke { border-color: var(--brooke); }
-  .member-card.audrey { border-color: var(--audrey); }
-  .member-card.christian { border-color: var(--christian); }
-  .member-card.mitchum { border-color: var(--mitchum); }
-  .member-card.bradford { border-color: var(--bradford); }
-
-  .member-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .member-name { font-weight: 700; font-size: 1rem; }
-  .member-role { font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; }
-  .status-badge { font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .status-home { background: rgba(6,214,160,0.15); color: #06d6a0; }
-  .status-away { background: rgba(255,126,179,0.15); color: #ff7eb3; }
-  .status-work { background: rgba(255,209,102,0.15); color: #ffd166; }
-
-  .member-events { display: flex; flex-direction: column; gap: 4px; max-height: 80px; overflow-y: auto; }
-  .event-item { font-size: 0.75rem; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
-  .event-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .event-text { color: var(--muted); }
-  .event-time { color: var(--text); font-weight: 600; white-space: nowrap; }
-
-  .chores-panel { grid-column: 3 / 4; }
-  .chore-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface2); transition: background 0.2s; }
-  .chore-item:hover { background: #2d333b; }
-  .chore-check { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; transition: all 0.2s; }
-  .chore-check.done { background: #06d6a0; border-color: #06d6a0; color: #0d1117; }
-  .chore-label { font-size: 0.85rem; flex: 1; }
-  .chore-label.done { text-decoration: line-through; color: var(--muted); }
-  .chore-assign { font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
-  .add-chore-row { display: flex; gap: 8px; }
-  .add-chore-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.82rem; outline: none; }
-  .add-chore-row input:focus { border-color: #06d6a0; }
-
-  .btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 700; padding: 7px 14px; cursor: pointer; transition: all 0.2s; }
-  .btn:hover { background: #2d333b; border-color: #06d6a0; }
-  .btn-primary { background: rgba(6,214,160,0.15); border-color: #06d6a0; color: #06d6a0; }
-  .btn-primary:hover { background: rgba(6,214,160,0.25); }
-
-  .selected-day-panel { grid-column: 1 / 3; animation: fadeIn 0.3s ease; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-  .selected-events-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
-  .sel-event { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface2); border-radius: 10px; border-left: 3px solid; }
-  .sel-event-time { font-size: 0.78rem; font-weight: 700; color: var(--muted); white-space: nowrap; min-width: 60px; }
-  .sel-event-title { font-size: 0.9rem; font-weight: 600; }
-  .sel-event-person { font-size: 0.72rem; }
-  .delete-btn { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px; transition: color 0.2s; }
-  .delete-btn:hover { color: #ff6b6b; }
-  .empty-state { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 20px; }
-
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-  .modal-backdrop.open { opacity: 1; pointer-events: all; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; width: 420px; max-width: 95vw; display: flex; flex-direction: column; gap: 16px; transform: translateY(20px); transition: transform 0.2s; }
-  .modal-backdrop.open .modal { transform: translateY(0); }
-  .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 2px; }
-  .form-group { display: flex; flex-direction: column; gap: 6px; }
-  .form-group label { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-  .form-group input, .form-group select { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
-  .form-group input:focus, .form-group select:focus { border-color: #06d6a0; }
-  .form-group select option { background: var(--surface2); }
-  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-
-  /* Toast */
-  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; font-size: 0.85rem; font-weight: 600; transition: transform 0.3s; z-index: 200; white-space: nowrap; }
-  .toast.show { transform: translateX(-50%) translateY(0); }
-
-  @media (max-width: 900px) {
-    .main { grid-template-columns: 1fr 1fr; padding: 16px; }
-    .members-panel, .chores-panel, .selected-day-panel { grid-column: 1 / -1; }
-    .day-event-chip { display: none; }
-  }
-  @media (max-width: 600px) {
-    .main { grid-template-columns: 1fr; padding: 12px; }
-    .members-grid { grid-template-columns: 1fr; }
-    .week-strip { gap: 3px; }
-    .day-col { padding: 8px 4px; }
-    .day-name { font-size: 0.7rem; }
-    .day-num { font-size: 1rem; }
-    header { padding: 16px; }
-    .logo { font-size: 1.6rem; }
-  }
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="logo">Young Family</div>
-  <div class="header-right">
-    <div class="date-display" id="date-display"></div>
-    <div id="weather-widget" onclick="refreshWeather()" title="Click to use your location">
-      <span id="weather-icon">🌤️</span>
-      <div>
-        <div style="display:flex;align-items:baseline;gap:6px;">
-          <span id="weather-temp">--°F</span>
-          <span id="weather-desc" style="font-size:0.75rem;color:var(--muted)">Loading...</span>
-        </div>
-        <div id="weather-loc" style="font-size:0.7rem;color:var(--muted)">Mountain Home, AR 📍</div>
+<!-- ── WELCOME SCREEN ── -->
+<div id="welcome-screen">
+  <div class="welcome-logo">Young Family</div>
+  <div class="welcome-sub">Family Dashboard</div>
+  <div class="welcome-prompt">Who's checking in? 👋</div>
+  <div class="member-picker" id="member-picker"></div>
+  <button class="guest-btn" onclick="selectUser('Guest','👀','#8b949e','guest')">Just browsing as a guest</button>
+</div>
+
+<!-- ── WHAT'S NEW MODAL ── -->
+<div class="modal-backdrop" id="whats-new-modal">
+  <div class="modal">
+    <h2 id="wn-title">Hey Bradford! 👋</h2>
+    <p style="font-size:.85rem;color:var(--muted);">Anything new to add before you dive in?</p>
+    <div class="form-group">
+      <label>Got a new event to add?</label>
+      <input type="text" id="wn-event-title" placeholder="e.g. Bomb Squad drill Thursday 9am">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="wn-event-date">
+      </div>
+      <div class="form-group">
+        <label>Time</label>
+        <input type="time" id="wn-event-time">
       </div>
     </div>
-    <button class="notif-btn" id="notif-btn" onclick="requestNotifications()">🔔 Enable Alerts</button>
-    <button class="install-btn" id="install-btn" onclick="installApp()">📲 Install App</button>
-    <button class="btn btn-primary" onclick="openModal()">+ Add Event</button>
-  </div>
-</header>
-
-<div class="main">
-  <div class="week-strip" id="week-strip"></div>
-
-  <div class="panel selected-day-panel">
-    <div class="panel-title">
-      <span id="selected-day-title">Today's Schedule</span>
-      <span style="font-size:0.75rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Click a day above</span>
+    <div class="form-group">
+      <label>Anything to add to the grocery list?</label>
+      <textarea id="wn-groceries" placeholder="milk, eggs, dog food, ...&#10;(one per line or comma separated)"></textarea>
     </div>
-    <div class="selected-events-list" id="selected-events-list"></div>
-  </div>
-
-  <div class="panel chores-panel">
-    <div class="panel-title">
-      <span>🏠 Chores</span>
-      <span id="chores-done-count" style="font-size:0.8rem;font-family:'Nunito',sans-serif;font-weight:600;color:var(--muted)"></span>
+    <div class="modal-actions">
+      <button class="btn" onclick="skipWhatsNew()">Skip for now</button>
+      <button class="btn btn-primary" onclick="saveWhatsNew()">Save & Go In</button>
     </div>
-    <div id="chores-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-    <div class="add-chore-row">
-      <input type="text" id="chore-input" placeholder="Add a chore..." onkeydown="if(event.key==='Enter')addChore()">
-      <select id="chore-assign" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:0.82rem;outline:none;cursor:pointer;">
-        <option value="">Anyone</option>
-        <option value="Bradford">Bradford</option>
-        <option value="Brooke">Brooke</option>
-        <option value="Audrey">Audrey</option>
-        <option value="Christian">Christian</option>
-        <option value="Mitchum">Mitchum</option>
-      </select>
-      <button class="btn btn-primary" onclick="addChore()">Add</button>
-    </div>
-  </div>
-
-  <div class="panel members-panel">
-    <div class="panel-title"><span>👨‍👩‍👧‍👦 Family Status</span></div>
-    <div class="members-grid" id="members-grid"></div>
   </div>
 </div>
 
-<!-- Add Event Modal -->
+<!-- ── ADD EVENT MODAL ── -->
 <div class="modal-backdrop" id="modal-backdrop" onclick="closeModalBackdrop(event)">
   <div class="modal">
     <h2>Add Event</h2>
-    <div class="form-group">
-      <label>Person</label>
+    <div class="form-group"><label>Person</label>
       <select id="evt-person">
-        <option value="Bradford">Bradford</option>
-        <option value="Brooke">Brooke</option>
-        <option value="Audrey">Audrey</option>
-        <option value="Christian">Christian</option>
+        <option value="Bradford">Bradford</option><option value="Brooke">Brooke</option>
+        <option value="Audrey">Audrey</option><option value="Christian">Christian</option>
         <option value="Mitchum">Mitchum</option>
       </select>
     </div>
-    <div class="form-group">
-      <label>Event Title</label>
-      <input type="text" id="evt-title" placeholder="e.g. Work at Creative Academy">
+    <div class="form-group"><label>Event Title</label><input type="text" id="evt-title" placeholder="e.g. Work at Creative Academy"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label>Date</label><input type="date" id="evt-date"></div>
+      <div class="form-group"><label>Time</label><input type="time" id="evt-time"></div>
     </div>
-    <div class="form-group">
-      <label>Date</label>
-      <input type="date" id="evt-date">
-    </div>
-    <div class="form-group">
-      <label>Time (optional)</label>
-      <input type="time" id="evt-time">
-    </div>
-    <div class="form-group">
-      <label>Type</label>
+    <div class="form-group"><label>Type</label>
       <select id="evt-type">
-        <option value="work">Work</option>
-        <option value="school">School / Class</option>
+        <option value="work">Work</option><option value="school">School / Class</option>
         <option value="activity">Activity / Band / Theater</option>
-        <option value="travel">Travel</option>
-        <option value="away">Away from Home</option>
+        <option value="travel">Travel</option><option value="away">Away from Home</option>
         <option value="personal">Personal</option>
       </select>
     </div>
@@ -303,180 +322,570 @@
   </div>
 </div>
 
+<!-- ── HA SETTINGS MODAL ── -->
+<div class="modal-backdrop" id="ha-modal" onclick="closeHAModalBackdrop(event)">
+  <div class="modal">
+    <h2>🏠 Home Assistant</h2>
+    <p style="font-size:.82rem;color:var(--muted);">Enter your Nabu Casa URL and a Long-Lived Access Token to connect.</p>
+    <div class="form-group">
+      <label>Nabu Casa URL</label>
+      <input type="url" id="ha-url-input" placeholder="https://YOUR-ID.ui.nabu.casa">
+    </div>
+    <div class="form-group">
+      <label>Long-Lived Access Token</label>
+      <input type="password" id="ha-token-input" placeholder="Paste your HA token here">
+    </div>
+    <p style="font-size:.75rem;color:var(--muted);">To get a token: HA → Profile → Security → Long-Lived Access Tokens → Create Token</p>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="disconnectHA()">Disconnect</button>
+      <button class="btn" onclick="closeHAModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveHAConfig()">Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <header>
+    <div class="header-left">
+      <div class="logo">Young Fam</div>
+      <div class="current-user-badge" onclick="switchUser()">
+        <div class="cu-dot" id="cu-dot"></div>
+        <span class="cu-name" id="cu-name"></span>
+        <span class="cu-switch">↩ switch</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="date-display" id="date-display"></div>
+      <div id="weather-widget" onclick="refreshWeather()" title="Click for your location">
+        <span id="weather-icon">🌤️</span>
+        <div>
+          <div style="display:flex;align-items:baseline;gap:5px;">
+            <span id="weather-temp">--°F</span>
+            <span id="weather-desc" style="font-size:.72rem;color:var(--muted)">Loading...</span>
+          </div>
+          <div id="weather-loc" style="font-size:.68rem;color:var(--muted)">Mountain Home, AR</div>
+        </div>
+      </div>
+      <button class="notif-btn" id="notif-btn" onclick="requestNotifications()">🔔 Alerts</button>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Event</button>
+    </div>
+  </header>
+
+  <div id="my-day-banner">
+    <div class="mdb-avatar" id="mdb-avatar"></div>
+    <div style="flex:1">
+      <div class="mdb-greeting" id="mdb-greeting"></div>
+      <div class="mdb-summary" id="mdb-summary"></div>
+      <div class="mdb-events" id="mdb-events"></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="week-strip" id="week-strip"></div>
+
+    <!-- Selected Day -->
+    <div class="panel selected-day-panel">
+      <div class="panel-title">
+        <span id="selected-day-title">Today's Schedule</span>
+        <span style="font-size:.75rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Click a day above</span>
+      </div>
+      <div class="selected-events-list" id="selected-events-list"></div>
+    </div>
+
+    <!-- Chores -->
+    <div class="panel chores-panel">
+      <div class="panel-title">
+        <span>🏠 Chores</span>
+        <span id="chores-done-count" style="font-size:.8rem;font-family:'Nunito',sans-serif;font-weight:600;color:var(--muted)"></span>
+      </div>
+      <div id="chores-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div class="add-chore-row">
+        <input type="text" id="chore-input" placeholder="Add a chore..." onkeydown="if(event.key==='Enter')addChore()">
+        <select id="chore-assign" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;cursor:pointer;">
+          <option value="">Anyone</option>
+          <option value="Bradford">Bradford</option><option value="Brooke">Brooke</option>
+          <option value="Audrey">Audrey</option><option value="Christian">Christian</option>
+          <option value="Mitchum">Mitchum</option>
+        </select>
+        <button class="btn btn-primary" onclick="addChore()">Add</button>
+      </div>
+    </div>
+
+    <!-- Members -->
+    <div class="panel members-panel">
+      <div class="panel-title"><span>👨‍👩‍👧‍👦 Family Status</span></div>
+      <div class="members-grid" id="members-grid"></div>
+    </div>
+
+    <!-- Grocery List -->
+    <div class="panel grocery-panel">
+      <div class="panel-title">
+        <span>🛒 Grocery List</span>
+        <span id="grocery-count" class="grocery-count"></span>
+      </div>
+      <div class="grocery-categories" id="grocery-categories"></div>
+      <div id="grocery-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+      <div class="add-grocery-row">
+        <input type="text" id="grocery-input" placeholder="Add item..." onkeydown="if(event.key==='Enter')addGroceryItem()">
+        <select id="grocery-cat" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;cursor:pointer;">
+          <option value="General">General</option>
+          <option value="Produce">Produce 🥦</option>
+          <option value="Dairy">Dairy 🥛</option>
+          <option value="Meat">Meat 🥩</option>
+          <option value="Bakery">Bakery 🍞</option>
+          <option value="Frozen">Frozen ❄️</option>
+          <option value="Household">Household 🧹</option>
+          <option value="Pets">Pets 🐕</option>
+        </select>
+        <button class="btn" style="background:rgba(255,209,102,.15);border-color:#ffd166;color:#ffd166;" onclick="addGroceryItem()">Add</button>
+      </div>
+      <button class="btn btn-danger" style="font-size:.75rem;padding:5px 10px;align-self:flex-start;" onclick="clearGotItems()">Clear checked</button>
+    </div>
+
+    <!-- Home Assistant -->
+    <div class="panel ha-panel">
+      <div class="panel-title">
+        <span>🏡 Home Assistant</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="ha-status"><div class="ha-dot" id="ha-dot"></div><span id="ha-status-text" style="font-size:.72rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Not connected</span></div>
+          <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openHAModal()">⚙️ Setup</button>
+          <button class="btn btn-primary" style="font-size:.72rem;padding:4px 10px;" onclick="refreshHA()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="ha-content">
+        <div class="ha-setup">
+          Connect your Nabu Casa account to control lights, locks, thermostats and more right from the dashboard.<br><br>
+          <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-const MEMBERS = [
-  { key:'Bradford',  role:'Bomb Squad / Dad',  cls:'bradford' },
-  { key:'Brooke',    role:'Creative Academy',   cls:'brooke'   },
-  { key:'Audrey',    role:'Hendrix College',    cls:'audrey'   },
-  { key:'Christian', role:'Work & School',      cls:'christian'},
-  { key:'Mitchum',   role:'Band & School',      cls:'mitchum'  },
+const MEMBERS=[
+  {key:'Bradford',role:'Bomb Squad / Dad',cls:'bradford',emoji:'👨',color:'#ff8c42'},
+  {key:'Brooke',  role:'Creative Academy', cls:'brooke',  emoji:'👩',color:'#ff7eb3'},
+  {key:'Audrey',  role:'Hendrix College',  cls:'audrey',  emoji:'👧',color:'#ffd166'},
+  {key:'Christian',role:'Work & School',   cls:'christian',emoji:'👦',color:'#06d6a0'},
+  {key:'Mitchum', role:'Band & School',    cls:'mitchum', emoji:'🎺',color:'#4fc3f7'},
 ];
-const MEMBER_HEX = {
-  Bradford:'#ff8c42', Brooke:'#ff7eb3', Audrey:'#ffd166', Christian:'#06d6a0', Mitchum:'#4fc3f7'
-};
+const MEMBER_HEX=Object.fromEntries(MEMBERS.map(m=>[m.key,m.color]));
 
-const today = new Date();
-function fmtDate(d) { return d.toISOString().split('T')[0]; }
-function addDays(d,n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+const today=new Date();
+function fmtDate(d){return d.toISOString().split('T')[0];}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 
-let events = JSON.parse(localStorage.getItem('young_events')||'null') || [
-  {id:1, person:'Brooke',    title:'Work — Creative Academy', date:fmtDate(today),            time:'08:00', type:'work'},
-  {id:2, person:'Bradford',  title:'Bomb Squad Training',      date:fmtDate(today),            time:'09:00', type:'work'},
-  {id:3, person:'Mitchum',   title:'Band Practice 🎺',         date:fmtDate(today),            time:'15:30', type:'activity'},
-  {id:4, person:'Audrey',    title:'Hendrix — Classes',        date:fmtDate(addDays(today,1)), time:'09:00', type:'school'},
-  {id:5, person:'Christian', title:'Work Shift',               date:fmtDate(addDays(today,1)), time:'14:00', type:'work'},
-  {id:6, person:'Brooke',    title:'Work — Creative Academy',  date:fmtDate(addDays(today,2)), time:'08:00', type:'work'},
-  {id:7, person:'Mitchum',   title:'Band Concert 🎺',          date:fmtDate(addDays(today,3)), time:'19:00', type:'activity'},
-  {id:8, person:'Audrey',    title:'Theater Rehearsal 🎭',     date:fmtDate(addDays(today,2)), time:'18:00', type:'activity'},
-  {id:9, person:'Bradford',  title:'Bomb Squad Call',          date:fmtDate(addDays(today,4)), time:'07:00', type:'work'},
-  {id:10,person:'Audrey',    title:'Summer Travel ✈️',         date:fmtDate(addDays(today,5)), time:'',      type:'travel'},
+let currentUser=JSON.parse(sessionStorage.getItem('young_user')||'null');
+
+let events=JSON.parse(localStorage.getItem('young_events')||'null')||[
+  {id:1,person:'Brooke',   title:'Work — Creative Academy',date:fmtDate(today),           time:'08:00',type:'work'},
+  {id:2,person:'Bradford', title:'Bomb Squad Training',    date:fmtDate(today),           time:'09:00',type:'work'},
+  {id:3,person:'Mitchum',  title:'Band Practice 🎺',       date:fmtDate(today),           time:'15:30',type:'activity'},
+  {id:4,person:'Audrey',   title:'Hendrix — Classes',      date:fmtDate(addDays(today,1)),time:'09:00',type:'school'},
+  {id:5,person:'Christian',title:'Work Shift',             date:fmtDate(addDays(today,1)),time:'14:00',type:'work'},
+  {id:6,person:'Brooke',   title:'Work — Creative Academy',date:fmtDate(addDays(today,2)),time:'08:00',type:'work'},
+  {id:7,person:'Mitchum',  title:'Band Concert 🎺',        date:fmtDate(addDays(today,3)),time:'19:00',type:'activity'},
+  {id:8,person:'Audrey',   title:'Theater Rehearsal 🎭',   date:fmtDate(addDays(today,2)),time:'18:00',type:'activity'},
+  {id:9,person:'Bradford', title:'Bomb Squad Call',        date:fmtDate(addDays(today,4)),time:'07:00',type:'work'},
+  {id:10,person:'Audrey',  title:'Summer Travel ✈️',       date:fmtDate(addDays(today,5)),time:'',     type:'travel'},
+];
+let chores=JSON.parse(localStorage.getItem('young_chores')||'null')||[
+  {id:1,label:'Feed the dogs',     done:false,assign:''},
+  {id:2,label:'Unload dishwasher', done:false,assign:''},
+  {id:3,label:'Take out trash',    done:false,assign:'Christian'},
+  {id:4,label:'Vacuum living room',done:false,assign:'Mitchum'},
+  {id:5,label:'Wipe counters',     done:false,assign:''},
+];
+let groceries=JSON.parse(localStorage.getItem('young_groceries')||'null')||[
+  {id:1,label:'Milk',  got:false,cat:'Dairy'},
+  {id:2,label:'Eggs',  got:false,cat:'Dairy'},
+  {id:3,label:'Dog food',got:false,cat:'Pets'},
+  {id:4,label:'Bread', got:false,cat:'Bakery'},
 ];
 
-let chores = JSON.parse(localStorage.getItem('young_chores')||'null') || [
-  {id:1, label:'Feed the dogs',      done:false, assign:''},
-  {id:2, label:'Unload dishwasher',  done:false, assign:''},
-  {id:3, label:'Take out trash',     done:false, assign:'Christian'},
-  {id:4, label:'Vacuum living room', done:false, assign:'Mitchum'},
-  {id:5, label:'Wipe counters',      done:false, assign:''},
-];
+let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
+let haEntities=[];
+let selectedDate=fmtDate(today);
+let selectedGroceryCat='All';
 
-let selectedDate = fmtDate(today);
+function saveData(){
+  localStorage.setItem('young_events',JSON.stringify(events));
+  localStorage.setItem('young_chores',JSON.stringify(chores));
+  localStorage.setItem('young_groceries',JSON.stringify(groceries));
+}
 
-function saveData() {
-  localStorage.setItem('young_events', JSON.stringify(events));
-  localStorage.setItem('young_chores', JSON.stringify(chores));
-  // Tell service worker to check events
-  if (navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type:'CHECK_EVENTS', events });
+// ── WELCOME ──
+function buildPicker(){
+  const p=document.getElementById('member-picker');p.innerHTML='';
+  MEMBERS.forEach(m=>{
+    const b=document.createElement('button');
+    b.className=`member-pick-btn ${m.cls}`;
+    b.innerHTML=`<div class="pick-avatar" style="background:${m.color}22;border:2px solid ${m.color}">${m.emoji}</div>
+      <div class="pick-name">${m.key}</div><div class="pick-role">${m.role}</div>`;
+    b.onclick=()=>selectUser(m.key,m.emoji,m.color,m.cls);
+    p.appendChild(b);
+  });
+}
+
+function selectUser(name,emoji,color,cls){
+  currentUser={name,emoji,color,cls};
+  sessionStorage.setItem('young_user',JSON.stringify(currentUser));
+  const ws=document.getElementById('welcome-screen');
+  ws.classList.add('hidden');
+  setTimeout(()=>{ws.style.display='none';},500);
+  document.getElementById('app').classList.add('visible');
+  if(name!=='Guest'){
+    showWhatsNew(name);
+  } else {
+    initApp();
   }
 }
 
-// --- TOAST ---
-function showToast(msg, duration=3000) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
+function switchUser(){
+  sessionStorage.removeItem('young_user');
+  document.getElementById('app').classList.remove('visible');
+  const ws=document.getElementById('welcome-screen');
+  ws.style.display='flex';ws.classList.remove('hidden');
 }
 
-// --- DATE ---
-function updateDateDisplay() {
-  document.getElementById('date-display').textContent = new Date().toLocaleDateString('en-US',
-    {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+// ── WHAT'S NEW ──
+function showWhatsNew(name){
+  document.getElementById('wn-title').textContent=`Hey ${name}! 👋`;
+  document.getElementById('wn-event-date').value=fmtDate(today);
+  document.getElementById('wn-event-title').value='';
+  document.getElementById('wn-event-time').value='';
+  document.getElementById('wn-groceries').value='';
+  document.getElementById('whats-new-modal').classList.add('open');
 }
 
-// --- WEEK ---
-function renderWeek() {
-  const strip = document.getElementById('week-strip');
-  strip.innerHTML = '';
-  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const start = addDays(today,-2);
-  for (let i=0;i<7;i++) {
-    const d = addDays(start,i);
-    const ds = fmtDate(d);
-    const dayEvts = events.filter(e=>e.date===ds);
-    const col = document.createElement('div');
+function saveWhatsNew(){
+  const title=document.getElementById('wn-event-title').value.trim();
+  const date=document.getElementById('wn-event-date').value;
+  const time=document.getElementById('wn-event-time').value;
+  const groceryText=document.getElementById('wn-groceries').value.trim();
+
+  if(title&&date){
+    events.push({id:Date.now(),person:currentUser.name,title,date,time,type:'personal'});
+    showToast(`✅ Event added!`);
+  }
+  if(groceryText){
+    const items=groceryText.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+    items.forEach(label=>{
+      groceries.push({id:Date.now()+Math.random(),label,got:false,cat:'General'});
+    });
+    showToast(`🛒 ${items.length} grocery item${items.length>1?'s':''} added!`);
+  }
+  saveData();
+  document.getElementById('whats-new-modal').classList.remove('open');
+  initApp();
+}
+
+function skipWhatsNew(){
+  document.getElementById('whats-new-modal').classList.remove('open');
+  initApp();
+}
+
+// ── INIT APP ──
+function initApp(){
+  document.getElementById('cu-dot').style.background=currentUser.color;
+  document.getElementById('cu-name').textContent=currentUser.name;
+  const sel=document.getElementById('evt-person');
+  if(sel&&currentUser.name!=='Guest')sel.value=currentUser.name;
+  updateDateDisplay();
+  renderMyDayBanner();
+  renderWeek();
+  renderSelectedDay();
+  renderMembers();
+  renderChores();
+  renderGroceries();
+  fetchWeather(36.3348,-92.3849,false);
+  updateNotifBtn(Notification.permission||'default');
+  if(haConfig) refreshHA();
+  else renderHASetup();
+  if(currentUser.name!=='Guest') setTimeout(()=>{
+    if(Notification.permission==='default')showToast(`👋 Hi ${currentUser.name}! Tap 🔔 Alerts to get event reminders.`,5000);
+  },1500);
+}
+
+// ── MY DAY BANNER ──
+function renderMyDayBanner(){
+  const banner=document.getElementById('my-day-banner');
+  if(!currentUser||currentUser.name==='Guest'){banner.style.display='none';return;}
+  banner.style.display='flex';
+  banner.style.background=`color-mix(in srgb,${currentUser.color} 8%,var(--surface))`;
+  banner.style.borderColor=`color-mix(in srgb,${currentUser.color} 30%,var(--border))`;
+  const myEvts=events.filter(e=>e.person===currentUser.name&&e.date===fmtDate(today))
+    .sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+  const h=new Date().getHours();
+  document.getElementById('mdb-avatar').textContent=currentUser.emoji;
+  document.getElementById('mdb-greeting').textContent=`${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, ${currentUser.name}! ${h<12?'☀️':h<17?'🌤️':'🌙'}`;
+  document.getElementById('mdb-summary').textContent=myEvts.length?`You have ${myEvts.length} event${myEvts.length>1?'s':''} today:`:'You\'ve got a free day today! 🎉';
+  document.getElementById('mdb-events').innerHTML=myEvts.map(e=>`
+    <div class="mdb-chip" style="background:${currentUser.color}22;color:${currentUser.color}">${e.time?formatTime(e.time)+' · ':''}${e.title}</div>`).join('');
+}
+
+// ── DATE ──
+function updateDateDisplay(){
+  document.getElementById('date-display').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+}
+
+// ── WEEK ──
+function renderWeek(){
+  const strip=document.getElementById('week-strip');strip.innerHTML='';
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const start=addDays(today,-2);
+  for(let i=0;i<7;i++){
+    const d=addDays(start,i);const ds=fmtDate(d);
+    const dayEvts=events.filter(e=>e.date===ds);
+    const col=document.createElement('div');
     col.className='day-col'+(ds===fmtDate(today)?' today':'')+(ds===selectedDate?' selected':'');
     col.onclick=()=>{selectedDate=ds;renderWeek();renderSelectedDay();renderMembers();};
-    col.innerHTML=`
-      <div class="day-name">${dayNames[d.getDay()]}</div>
+    col.innerHTML=`<div class="day-name">${dayNames[d.getDay()]}</div>
       <div class="day-num">${d.getDate()}</div>
-      <div class="day-dots">
-        ${[...new Set(dayEvts.map(e=>e.person))].map(p=>`<div class="dot" style="background:${MEMBER_HEX[p]}" title="${p}"></div>`).join('')}
-      </div>
-      <div class="day-event-list">
-        ${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${MEMBER_HEX[e.person]}22;color:${MEMBER_HEX[e.person]}">${e.title}</div>`).join('')}
-      </div>`;
+      <div class="day-dots">${[...new Set(dayEvts.map(e=>e.person))].map(p=>`<div class="dot" style="background:${MEMBER_HEX[p]||'#888'}" title="${p}"></div>`).join('')}</div>
+      <div class="day-event-list">${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${(MEMBER_HEX[e.person]||'#888')}22;color:${MEMBER_HEX[e.person]||'#888'}">${e.title}</div>`).join('')}</div>`;
     strip.appendChild(col);
   }
 }
 
-// --- SELECTED DAY ---
-function renderSelectedDay() {
-  const d = new Date(selectedDate+'T12:00:00');
+// ── SELECTED DAY ──
+function renderSelectedDay(){
+  const d=new Date(selectedDate+'T12:00:00');
   const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
-  const dayEvts = events.filter(e=>e.date===selectedDate).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
-  const list = document.getElementById('selected-events-list');
-  if (!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
-  list.innerHTML=dayEvts.map(e=>`
-    <div class="sel-event" style="border-color:${MEMBER_HEX[e.person]}">
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+  const dayEvts=events.filter(e=>e.date===selectedDate).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+  const list=document.getElementById('selected-events-list');
+  if(!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
+  list.innerHTML=dayEvts.map(e=>{
+    const isMe=currentUser&&e.person===currentUser.name;
+    return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}">
       <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
-      <div>
-        <div class="sel-event-title">${e.title}</div>
-        <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]}">${e.person} · ${capitalize(e.type)}</div>
-      </div>
-      <button class="delete-btn" onclick="deleteEvent(${e.id})">✕</button>
-    </div>`).join('');
+      <div><div class="sel-event-title">${e.title}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
+      <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person} · ${capitalize(e.type)}</div></div>
+      <button class="delete-btn" onclick="deleteEvent(${e.id})">✕</button></div>`;
+  }).join('');
 }
+function deleteEvent(id){events=events.filter(e=>e.id!==id);saveData();renderWeek();renderSelectedDay();renderMembers();renderMyDayBanner();}
 
-function deleteEvent(id){events=events.filter(e=>e.id!==id);saveData();renderWeek();renderSelectedDay();renderMembers();}
-
-// --- MEMBERS ---
+// ── MEMBERS ──
 function renderMembers(){
-  const grid=document.getElementById('members-grid');
-  grid.innerHTML='';
+  const grid=document.getElementById('members-grid');grid.innerHTML='';
   MEMBERS.forEach((m,i)=>{
     const dayEvts=events.filter(e=>e.person===m.key&&e.date===selectedDate);
     const isWork=dayEvts.some(e=>e.type==='work');
     const isAway=dayEvts.some(e=>e.type==='travel'||e.type==='away');
+    const isMe=currentUser&&m.key===currentUser.name;
     const statusLabel=isAway?'✈️ Away':isWork?'💼 At Work':'🏠 Home';
     const statusCls=isAway?'status-away':isWork?'status-work':'status-home';
     const card=document.createElement('div');
     card.className=`member-card ${m.cls}`;
-    if(i===4) card.style.gridColumn='1 / -1';
-    card.innerHTML=`
-      <div class="member-header">
-        <div>
-          <div class="member-name">${m.key}</div>
-          <div class="member-role">${m.role}</div>
-        </div>
-        <div class="status-badge ${statusCls}">${statusLabel}</div>
-      </div>
-      <div class="member-events">
-        ${!dayEvts.length
-          ?'<div style="font-size:0.75rem;color:var(--muted)">Nothing scheduled</div>'
-          :dayEvts.map(e=>`<div class="event-item"><div class="event-dot" style="background:${MEMBER_HEX[m.key]}"></div><span class="event-time">${e.time?formatTime(e.time):'All day'}</span><span class="event-text">${e.title}</span></div>`).join('')}
-      </div>`;
+    if(i===4)card.style.gridColumn='1/-1';
+    if(isMe)card.style.outline=`2px solid ${m.color}44`;
+    card.innerHTML=`<div class="member-header"><div>
+      <div class="member-name">${m.emoji} ${m.key}${isMe?'<span class="me-tag">you</span>':''}</div>
+      <div class="member-role">${m.role}</div></div>
+      <div class="status-badge ${statusCls}">${statusLabel}</div></div>
+      <div class="member-events">${!dayEvts.length
+        ?'<div style="font-size:.75rem;color:var(--muted)">Nothing scheduled</div>'
+        :dayEvts.map(e=>`<div class="event-item"><div class="event-dot" style="background:${m.color}"></div><span class="event-time">${e.time?formatTime(e.time):'All day'}</span><span class="event-text">${e.title}</span></div>`).join('')
+      }</div>`;
     grid.appendChild(card);
   });
 }
 
-// --- CHORES ---
+// ── CHORES ──
 function renderChores(){
-  const list=document.getElementById('chores-list');
-  list.innerHTML='';
+  const list=document.getElementById('chores-list');list.innerHTML='';
   const done=chores.filter(c=>c.done).length;
   document.getElementById('chores-done-count').textContent=`${done}/${chores.length} done`;
   chores.forEach(c=>{
-    const ac=c.assign?MEMBER_HEX[c.assign]:'var(--muted)';
-    const item=document.createElement('div');
-    item.className='chore-item';
-    item.innerHTML=`
-      <div class="chore-check ${c.done?'done':''}" onclick="toggleChore(${c.id})">${c.done?'✓':''}</div>
+    const ac=c.assign&&MEMBER_HEX[c.assign]?MEMBER_HEX[c.assign]:'var(--muted)';
+    const item=document.createElement('div');item.className='chore-item';
+    item.innerHTML=`<div class="chore-check ${c.done?'done':''}" onclick="toggleChore(${c.id})">${c.done?'✓':''}</div>
       <div class="chore-label ${c.done?'done':''}">${c.label}</div>
       ${c.assign?`<span class="chore-assign" style="background:${ac}22;color:${ac}">${c.assign}</span>`:''}
       <button class="delete-btn" onclick="deleteChore(${c.id})">✕</button>`;
     list.appendChild(item);
   });
 }
-
 function toggleChore(id){const c=chores.find(c=>c.id===id);if(c)c.done=!c.done;saveData();renderChores();}
 function deleteChore(id){chores=chores.filter(c=>c.id!==id);saveData();renderChores();}
 function addChore(){
-  const inp=document.getElementById('chore-input');
-  const assign=document.getElementById('chore-assign').value;
-  const label=inp.value.trim();
-  if(!label)return;
-  chores.push({id:Date.now(),label,done:false,assign});
-  inp.value='';saveData();renderChores();
+  const inp=document.getElementById('chore-input'),assign=document.getElementById('chore-assign').value,label=inp.value.trim();
+  if(!label)return;chores.push({id:Date.now(),label,done:false,assign});inp.value='';saveData();renderChores();
 }
 
-// --- MODAL ---
-function openModal(){document.getElementById('modal-backdrop').classList.add('open');document.getElementById('evt-date').value=selectedDate;}
+// ── GROCERIES ──
+function renderGroceries(){
+  const cats=['All',...new Set(groceries.map(g=>g.cat))];
+  const catDiv=document.getElementById('grocery-categories');
+  catDiv.innerHTML=cats.map(c=>`<div class="cat-chip${c===selectedGroceryCat?' active':''}" onclick="setGroceryCat('${c}')">${c}</div>`).join('');
+  const filtered=selectedGroceryCat==='All'?groceries:groceries.filter(g=>g.cat===selectedGroceryCat);
+  const list=document.getElementById('grocery-list');list.innerHTML='';
+  const remaining=groceries.filter(g=>!g.got).length;
+  document.getElementById('grocery-count').textContent=`${remaining} item${remaining!==1?'s':''} left`;
+  filtered.forEach(g=>{
+    const item=document.createElement('div');item.className='grocery-item';
+    item.innerHTML=`<div class="grocery-check ${g.got?'got':''}" onclick="toggleGrocery(${g.id})">${g.got?'✓':''}</div>
+      <div class="grocery-label ${g.got?'got':''}">${g.label}</div>
+      <span class="grocery-cat-badge">${g.cat}</span>
+      <button class="delete-btn" onclick="deleteGrocery(${g.id})">✕</button>`;
+    list.appendChild(item);
+  });
+}
+function setGroceryCat(cat){selectedGroceryCat=cat;renderGroceries();}
+function toggleGrocery(id){const g=groceries.find(g=>g.id===id);if(g)g.got=!g.got;saveData();renderGroceries();}
+function deleteGrocery(id){groceries=groceries.filter(g=>g.id!==id);saveData();renderGroceries();}
+function addGroceryItem(){
+  const inp=document.getElementById('grocery-input'),cat=document.getElementById('grocery-cat').value,label=inp.value.trim();
+  if(!label)return;groceries.push({id:Date.now(),label,got:false,cat});inp.value='';saveData();renderGroceries();
+}
+function clearGotItems(){groceries=groceries.filter(g=>!g.got);saveData();renderGroceries();showToast('🛒 Cleared checked items');}
+
+// ── HOME ASSISTANT ──
+function openHAModal(){
+  if(haConfig){
+    document.getElementById('ha-url-input').value=haConfig.url||'';
+    document.getElementById('ha-token-input').value=haConfig.token||'';
+  }
+  document.getElementById('ha-modal').classList.add('open');
+}
+function closeHAModal(){document.getElementById('ha-modal').classList.remove('open');}
+function closeHAModalBackdrop(e){if(e.target===document.getElementById('ha-modal'))closeHAModal();}
+
+function saveHAConfig(){
+  const url=document.getElementById('ha-url-input').value.trim().replace(/\/$/,'');
+  const token=document.getElementById('ha-token-input').value.trim();
+  if(!url||!token){showToast('❌ Please enter both URL and token');return;}
+  haConfig={url,token};
+  localStorage.setItem('young_ha_config',JSON.stringify(haConfig));
+  closeHAModal();
+  refreshHA();
+}
+function disconnectHA(){
+  haConfig=null;localStorage.removeItem('young_ha_config');
+  closeHAModal();renderHASetup();
+  document.getElementById('ha-dot').className='ha-dot';
+  document.getElementById('ha-status-text').textContent='Not connected';
+}
+
+function renderHASetup(){
+  document.getElementById('ha-content').innerHTML=`<div class="ha-setup">
+    Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br>
+    <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button>
+  </div>`;
+}
+
+async function refreshHA(){
+  if(!haConfig)return;
+  document.getElementById('ha-status-text').textContent='Connecting...';
+  document.getElementById('ha-dot').className='ha-dot';
+  try{
+    const res=await fetch(`${haConfig.url}/api/states`,{
+      headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'}
+    });
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    const all=await res.json();
+    // Filter to useful domains
+    const domains=['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'];
+    haEntities=all.filter(e=>domains.includes(e.entity_id.split('.')[0]));
+    document.getElementById('ha-dot').className='ha-dot connected';
+    document.getElementById('ha-status-text').textContent=`Connected · ${haEntities.length} entities`;
+    renderHATiles();
+  }catch(err){
+    document.getElementById('ha-dot').className='ha-dot error';
+    document.getElementById('ha-status-text').textContent='Connection failed';
+    document.getElementById('ha-content').innerHTML=`<div class="ha-setup">
+      Could not connect to Home Assistant. Check your URL and token, and make sure your Nabu Casa remote access is enabled.<br><br>
+      <span style="color:#ff6b6b;font-size:.8rem;">Error: ${err.message}</span><br><br>
+      <button class="btn btn-primary" onclick="openHAModal()">Try Again</button>
+    </div>`;
+  }
+}
+
+function renderHATiles(){
+  // Show lights, switches, locks, climate — most useful for a family dashboard
+  const priority=['light','switch','lock','climate','cover'];
+  const sorted=[...haEntities].sort((a,b)=>{
+    const da=priority.indexOf(a.entity_id.split('.')[0]);
+    const db=priority.indexOf(b.entity_id.split('.')[0]);
+    return(da===-1?99:da)-(db===-1?99:db);
+  });
+  const shown=sorted.slice(0,12);
+  document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${shown.map(e=>haTile(e)).join('')}</div>
+    ${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length} entities</div>`:''}`;
+}
+
+function haTile(entity){
+  const domain=entity.entity_id.split('.')[0];
+  const state=entity.state;
+  const name=entity.attributes.friendly_name||entity.entity_id;
+  const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
+  const unavailable=state==='unavailable'||state==='unknown';
+  const icon=haIcon(domain,state,entity.attributes);
+  const stateLabel=haStateLabel(domain,state,entity.attributes);
+  const canToggle=['light','switch','input_boolean','cover'].includes(domain);
+  return`<div class="ha-tile${isOn?' on':''}${unavailable?' unavailable':''}"
+    ${canToggle&&!unavailable?`onclick="haToggle('${entity.entity_id}','${domain}','${state}')"`:''}
+    title="${entity.entity_id}">
+    <div class="ha-icon">${icon}</div>
+    <div class="ha-name">${name.length>18?name.slice(0,16)+'…':name}</div>
+    <div class="ha-state ${isOn?'on':'off'}">${stateLabel}</div>
+  </div>`;
+}
+
+function haIcon(domain,state,attrs){
+  const on=state==='on'||state==='open'||state==='unlocked';
+  if(domain==='light')return on?'💡':'🔦';
+  if(domain==='switch')return on?'🔵':'⚪';
+  if(domain==='lock')return state==='locked'?'🔒':'🔓';
+  if(domain==='climate'){
+    const action=attrs.hvac_action;
+    if(action==='heating')return'🔥';if(action==='cooling')return'❄️';return'🌡️';
+  }
+  if(domain==='cover')return on?'⬆️':'⬇️';
+  if(domain==='binary_sensor')return on?'🟢':'⚫';
+  if(domain==='sensor')return'📊';
+  return'🏠';
+}
+
+function haStateLabel(domain,state,attrs){
+  if(domain==='climate'){
+    const temp=attrs.current_temperature;
+    const target=attrs.temperature;
+    return temp?`${temp}° → ${target||'?'}°`:state;
+  }
+  if(domain==='sensor')return`${state}${attrs.unit_of_measurement||''}`;
+  if(domain==='lock')return state==='locked'?'Locked':'Unlocked';
+  return state;
+}
+
+async function haToggle(entityId,domain,currentState){
+  if(!haConfig)return;
+  let service;
+  if(domain==='cover'){service=currentState==='open'?'close_cover':'open_cover';}
+  else{service=currentState==='on'?'turn_off':'turn_on';}
+  try{
+    await fetch(`${haConfig.url}/api/services/${domain}/${service}`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entityId})
+    });
+    setTimeout(refreshHA,800);
+  }catch(e){showToast('❌ Could not control device');}
+}
+
+// ── MODALS ──
+function openModal(){
+  document.getElementById('modal-backdrop').classList.add('open');
+  document.getElementById('evt-date').value=selectedDate;
+  if(currentUser&&currentUser.name!=='Guest')document.getElementById('evt-person').value=currentUser.name;
+}
 function closeModal(){document.getElementById('modal-backdrop').classList.remove('open');}
 function closeModalBackdrop(e){if(e.target===document.getElementById('modal-backdrop'))closeModal();}
 function saveEvent(){
@@ -487,93 +896,88 @@ function saveEvent(){
   const type=document.getElementById('evt-type').value;
   if(!title||!date){alert('Please fill in a title and date.');return;}
   events.push({id:Date.now(),person,title,date,time,type});
-  saveData();closeModal();renderWeek();renderSelectedDay();renderMembers();
+  saveData();closeModal();renderWeek();renderSelectedDay();renderMembers();renderMyDayBanner();
   showToast(`✅ Event added for ${person}`);
-  document.getElementById('evt-title').value='';
-  document.getElementById('evt-time').value='';
+  document.getElementById('evt-title').value='';document.getElementById('evt-time').value='';
 }
 
-// --- WEATHER ---
+// ── WEATHER ──
 async function refreshWeather(){
   document.getElementById('weather-desc').textContent='Locating...';
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
       pos=>fetchWeather(pos.coords.latitude,pos.coords.longitude,true),
-      ()=>fetchWeather(36.3348,-92.3849,false)
-    );
-  } else {fetchWeather(36.3348,-92.3849,false);}
+      ()=>fetchWeather(36.3348,-92.3849,false));
+  }else fetchWeather(36.3348,-92.3849,false);
 }
 async function fetchWeather(lat,lon,geo){
   try{
-    const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
-    const data=await res.json();
-    const cw=data.current_weather;
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
+    const d=await r.json();const cw=d.current_weather;
     document.getElementById('weather-icon').textContent=wmoIcon(cw.weathercode);
     document.getElementById('weather-temp').textContent=Math.round(cw.temperature)+'°F';
     document.getElementById('weather-desc').textContent=wmoDesc(cw.weathercode);
-    document.getElementById('weather-loc').textContent=geo?'Your Location 📍':'Mountain Home, AR 📍';
-  }catch(e){document.getElementById('weather-desc').textContent='Unavailable';}
+    document.getElementById('weather-loc').textContent=geo?'Your Location':'Mountain Home, AR';
+  }catch{document.getElementById('weather-desc').textContent='Unavailable';}
 }
 function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=49)return'🌫️';if(c<=59)return'🌦️';if(c<=69)return'🌧️';if(c<=79)return'🌨️';if(c<=82)return'🌧️';if(c<=99)return'⛈️';return'🌤️';}
 function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
 
-// --- NOTIFICATIONS ---
+// ── NOTIFICATIONS ──
 async function requestNotifications(){
-  if(!('Notification' in window)){showToast('❌ Notifications not supported in this browser');return;}
-  const perm = await Notification.requestPermission();
+  if(!('Notification'in window)){showToast('❌ Not supported in this browser');return;}
+  const perm=await Notification.requestPermission();
   updateNotifBtn(perm);
   if(perm==='granted'){
-    showToast('🔔 Notifications enabled! You\'ll get alerts 15 min before events.');
-    new Notification('Young Family Dashboard',{body:'Notifications are on! You\'re all set. 🏠'});
-  } else {
-    showToast('Notifications blocked. Enable them in your browser settings.');
-  }
+    showToast('🔔 Alerts on! 15-min warnings before your events.');
+    new Notification(`Hey ${currentUser?.name||'there'}! 🏠`,{body:'Young Family Dashboard alerts are on.'});
+    scheduleNotifications();
+  }else showToast('Blocked — enable in browser settings.');
 }
 function updateNotifBtn(perm){
-  const btn=document.getElementById('notif-btn');
-  if(perm==='granted'){btn.textContent='🔔 Alerts On';btn.className='notif-btn enabled';}
-  else if(perm==='denied'){btn.textContent='🔕 Blocked';btn.className='notif-btn denied';}
-  else{btn.textContent='🔔 Enable Alerts';btn.className='notif-btn';}
+  const btn=document.getElementById('notif-btn');if(!btn)return;
+  if(perm==='granted'){btn.textContent='🔔 On';btn.className='notif-btn enabled';}
+  else if(perm==='denied'){btn.textContent='🔕 Off';btn.className='notif-btn denied';}
+  else{btn.textContent='🔔 Alerts';btn.className='notif-btn';}
 }
-
-// --- PWA INSTALL ---
-let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  document.getElementById('install-btn').classList.add('visible');
-});
-function installApp(){
-  if(!deferredPrompt)return;
-  deferredPrompt.prompt();
-  deferredPrompt.userChoice.then(()=>{deferredPrompt=null;document.getElementById('install-btn').classList.remove('visible');});
-}
-window.addEventListener('appinstalled',()=>{showToast('📲 App installed! Find it on your home screen.');});
-
-// --- SERVICE WORKER ---
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(reg=>{
-    console.log('SW registered:', reg.scope);
-    // Ping SW with events every minute for notification checks
-    setInterval(()=>{
-      if(navigator.serviceWorker.controller){
-        navigator.serviceWorker.controller.postMessage({type:'CHECK_EVENTS',events});
-      }
-    },60000);
+function scheduleNotifications(){
+  if(Notification.permission!=='granted')return;
+  const myEvts=events.filter(e=>e.person===currentUser?.name&&e.date===fmtDate(today)&&e.time);
+  const now=new Date();
+  myEvts.forEach(e=>{
+    const[h,m]=e.time.split(':').map(Number);
+    const evTime=new Date(today);evTime.setHours(h,m,0,0);
+    const delay=evTime.getTime()-15*60*1000-now.getTime();
+    if(delay>0)setTimeout(()=>{
+      new Notification(`⏰ Coming up, ${currentUser.name}!`,{body:`${e.title} starts in 15 minutes`,tag:`event-${e.id}`});
+    },delay);
   });
-  if(Notification.permission) updateNotifBtn(Notification.permission);
 }
 
+// ── SERVICE WORKER ──
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('sw.js').then(()=>{
+    setInterval(()=>{if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:'CHECK_EVENTS',events});},60000);
+  });
+}
+
+// ── TOAST ──
+function showToast(msg,duration=3000){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),duration);
+}
+
+// ── HELPERS ──
 function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
 function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
 
-// INIT
-updateDateDisplay();
-renderWeek();
-renderSelectedDay();
-renderMembers();
-renderChores();
-fetchWeather(36.3348,-92.3849,false);
+// ── BOOT ──
+buildPicker();
+if(currentUser){
+  document.getElementById('welcome-screen').style.display='none';
+  document.getElementById('app').classList.add('visible');
+  initApp();
+}
 </script>
 </body>
 </html>
