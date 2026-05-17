@@ -7,28 +7,73 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#06d6a0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Young Fam">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, set, push, update, remove, get }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ── PASTE YOUR FIREBASE CONFIG HERE ──
+  const firebaseConfig = {
+    apiKey: "REPLACE_WITH_YOUR_API_KEY",
+    authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+    databaseURL: "REPLACE_WITH_YOUR_DATABASE_URL",
+    projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+    storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+    messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
+    appId: "REPLACE_WITH_YOUR_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  // Expose DB helpers to global scope
+  window._fb = {
+    ref, onValue, set, push, update, remove, get,
+    db,
+    eventsRef:   () => ref(db, 'events'),
+    choresRef:   () => ref(db, 'chores'),
+    groceriesRef:() => ref(db, 'groceries'),
+    choreLogRef: () => ref(db, 'choreLog'),
+    settingsRef: () => ref(db, 'settings'),
+  };
+
+  // Signal app that Firebase is ready
+  window._fbReady = true;
+  document.dispatchEvent(new Event('fb-ready'));
+</script>
+
 <style>
-  :root {
-    --bg:#0d1117; --surface:#161b22; --surface2:#21262d; --border:#30363d;
-    --brooke:#ff7eb3; --audrey:#ffd166; --christian:#06d6a0; --mitchum:#4fc3f7; --bradford:#ff8c42;
-    --text:#e6edf3; --muted:#8b949e; --accent:#06d6a0;
+  :root{
+    --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+    --brooke:#ff7eb3;--audrey:#ffd166;--christian:#06d6a0;--mitchum:#4fc3f7;--bradford:#ff8c42;
+    --text:#e6edf3;--muted:#8b949e;--accent:#06d6a0;
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden;}
 
+  /* ── SPLASH ── */
+  #splash{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:var(--bg);gap:16px;transition:opacity .4s;}
+  #splash.hidden{opacity:0;pointer-events:none;}
+  .splash-logo{font-family:'Bebas Neue',sans-serif;font-size:3rem;letter-spacing:4px;
+    background:linear-gradient(135deg,#ff7eb3,#ffd166,#06d6a0,#4fc3f7);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .splash-msg{color:var(--muted);font-size:.9rem;font-weight:600;}
+  .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:#06d6a0;border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
   /* ── WELCOME ── */
-  #welcome-screen{
-    position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  #welcome-screen{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:var(--bg);
     background-image:radial-gradient(ellipse at 15% 15%,rgba(255,126,179,.12) 0%,transparent 50%),
       radial-gradient(ellipse at 85% 85%,rgba(6,214,160,.12) 0%,transparent 50%),
       radial-gradient(ellipse at 85% 15%,rgba(255,209,102,.08) 0%,transparent 40%),
       radial-gradient(ellipse at 15% 85%,rgba(79,195,247,.08) 0%,transparent 40%);
-    padding:24px;transition:opacity .5s,transform .5s;
-  }
+    padding:24px;transition:opacity .5s,transform .5s;}
   #welcome-screen.hidden{opacity:0;transform:scale(1.03);pointer-events:none;}
   .welcome-logo{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.5rem,8vw,5rem);letter-spacing:4px;
     background:linear-gradient(135deg,#ff7eb3,#ffd166,#06d6a0,#4fc3f7);
@@ -51,12 +96,12 @@
     color:var(--muted);font-family:'Nunito',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;}
   .guest-btn:hover{border-color:var(--muted);color:var(--text);}
 
-  /* ── WHAT'S NEW MODAL ── */
-  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
-    display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;}
+  /* ── MODALS ── */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s;}
   .modal-backdrop.open{opacity:1;pointer-events:all;}
   .modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;
-    width:460px;max-width:95vw;display:flex;flex-direction:column;gap:16px;transform:translateY(20px);transition:transform .2s;}
+    width:480px;max-width:95vw;display:flex;flex-direction:column;gap:16px;transform:translateY(20px);transition:transform .2s;max-height:90vh;overflow-y:auto;}
   .modal-backdrop.open .modal{transform:translateY(0);}
   .modal h2{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:2px;}
   .form-group{display:flex;flex-direction:column;gap:6px;}
@@ -66,9 +111,9 @@
   .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#06d6a0;}
   .form-group select option{background:var(--surface2);}
   .form-group textarea{resize:vertical;min-height:72px;}
-  .modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
 
-  /* ── APP SHELL ── */
+  /* ── APP ── */
   #app{display:none;flex-direction:column;min-height:100vh;}
   #app.visible{display:flex;}
   header{padding:18px 32px 14px;display:flex;align-items:center;justify-content:space-between;
@@ -82,6 +127,11 @@
   .cu-dot{width:10px;height:10px;border-radius:50%;}
   .cu-name{font-weight:700;font-size:.85rem;}
   .cu-switch{font-size:.7rem;color:var(--muted);}
+  .sync-indicator{font-size:.7rem;display:flex;align-items:center;gap:5px;color:var(--muted);}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:#8b949e;}
+  .sync-dot.live{background:#06d6a0;animation:pulse 2s infinite;}
+  .sync-dot.error{background:#ff6b6b;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .date-display{font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:1px;text-transform:uppercase;}
   #weather-widget{background:var(--surface);border:1px solid var(--border);border-radius:12px;
@@ -95,13 +145,14 @@
   .btn-primary:hover{background:rgba(6,214,160,.25);}
   .btn-danger{background:rgba(255,107,107,.1);border-color:#ff6b6b;color:#ff6b6b;}
   .btn-danger:hover{background:rgba(255,107,107,.2);}
+  .btn-yellow{background:rgba(255,209,102,.15);border-color:#ffd166;color:#ffd166;}
+  .btn-yellow:hover{background:rgba(255,209,102,.25);}
   .notif-btn{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;
     cursor:pointer;transition:all .2s;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;color:var(--text);}
-  .notif-btn:hover{border-color:#ffd166;}
   .notif-btn.enabled{border-color:#06d6a0;color:#06d6a0;background:rgba(6,214,160,.1);}
   .notif-btn.denied{border-color:#ff6b6b;color:#ff6b6b;}
 
-  /* ── MY DAY BANNER ── */
+  /* ── MY DAY ── */
   #my-day-banner{margin:20px 32px 0;border-radius:16px;padding:18px 24px;
     display:flex;align-items:center;gap:16px;border:1px solid var(--border);animation:fadeIn .4s ease;}
   .mdb-avatar{font-size:2rem;}
@@ -123,8 +174,7 @@
   .day-col.today .day-num{color:#ffd166;}
   .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
   .dot{width:8px;height:8px;border-radius:50%;}
-  .day-event-list{margin-top:4px;display:flex;flex-direction:column;gap:3px;}
-  .day-event-chip{font-size:.6rem;font-weight:700;padding:2px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .day-event-chip{font-size:.6rem;font-weight:700;padding:2px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;}
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px;}
   .panel-title{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:1.5px;color:var(--muted);
     border-bottom:1px solid var(--border);padding-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
@@ -139,7 +189,7 @@
   .member-name{font-weight:800;font-size:1rem;display:flex;align-items:center;gap:6px;}
   .me-tag{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(6,214,160,.2);color:#06d6a0;}
   .member-role{font-size:.72rem;color:var(--muted);margin-bottom:6px;}
-  .status-badge{font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;}
+  .status-badge{font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;}
   .status-home{background:rgba(6,214,160,.15);color:#06d6a0;}
   .status-away{background:rgba(255,126,179,.15);color:#ff7eb3;}
   .status-work{background:rgba(255,209,102,.15);color:#ffd166;}
@@ -151,27 +201,41 @@
 
   /* ── CHORES ── */
   .chores-panel{grid-column:3/4;}
-  .chore-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);transition:background .2s;}
+  .chore-item{background:var(--surface2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;transition:background .2s;}
   .chore-item:hover{background:#2d333b;}
-  .chore-check{width:18px;height:18px;border-radius:5px;border:2px solid var(--border);cursor:pointer;
-    display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;transition:all .2s;}
-  .chore-check.done{background:#06d6a0;border-color:#06d6a0;color:#0d1117;}
-  .chore-label{font-size:.85rem;flex:1;}
-  .chore-label.done{text-decoration:line-through;color:var(--muted);}
-  .chore-assign{font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;}
-  .add-chore-row{display:flex;gap:8px;}
-  .add-chore-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  .chore-top{display:flex;align-items:center;gap:10px;}
+  .chore-icon{font-size:1.2rem;flex-shrink:0;}
+  .chore-info{flex:1;}
+  .chore-name{font-size:.88rem;font-weight:700;}
+  .chore-freq{font-size:.68rem;color:var(--muted);}
+  .chore-actions{display:flex;align-items:center;gap:6px;}
+  .chore-add-btn{background:rgba(6,214,160,.15);border:1px solid #06d6a0;color:#06d6a0;border-radius:8px;
+    padding:4px 12px;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .chore-add-btn:hover{background:rgba(6,214,160,.25);}
+  .chore-counters{display:flex;flex-wrap:wrap;gap:6px;}
+  .counter-chip{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:4px;}
+  .counter-x{cursor:pointer;opacity:.6;font-size:.7rem;}
+  .counter-x:hover{opacity:1;}
+  .chore-history-btn{background:none;border:none;color:var(--muted);font-size:.7rem;cursor:pointer;text-decoration:underline;align-self:flex-start;}
+  .chore-history-btn:hover{color:var(--text);}
+  .add-chore-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .add-chore-row input{flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
     padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
   .add-chore-row input:focus{border-color:#06d6a0;}
 
-  /* ── GROCERY LIST ── */
+  /* ── CHORE HISTORY ── */
+  .history-entry{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
+  .history-date{font-size:.72rem;color:var(--muted);min-width:70px;}
+  .history-chips{display:flex;flex-wrap:wrap;gap:4px;flex:1;}
+  .history-chip{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;}
+
+  /* ── GROCERY ── */
   .grocery-panel{grid-column:3/4;}
   .grocery-categories{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
   .cat-chip{font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:20px;cursor:pointer;
     background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .2s;}
   .cat-chip.active{border-color:#ffd166;color:#ffd166;background:rgba(255,209,102,.1);}
-  .grocery-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);transition:background .2s;}
-  .grocery-item:hover{background:#2d333b;}
+  .grocery-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);}
   .grocery-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);cursor:pointer;
     display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;transition:all .2s;}
   .grocery-check.got{background:#ffd166;border-color:#ffd166;color:#0d1117;}
@@ -182,31 +246,6 @@
   .add-grocery-row input{flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
     padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
   .add-grocery-row input:focus{border-color:#ffd166;}
-  .grocery-count{font-size:.75rem;color:var(--muted);}
-
-  /* ── HOME ASSISTANT ── */
-  .ha-panel{grid-column:1/3;}
-  .ha-setup{text-align:center;padding:16px;color:var(--muted);font-size:.85rem;}
-  .ha-setup a{color:#06d6a0;text-decoration:none;}
-  .ha-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
-  .ha-tile{background:var(--surface2);border:1px solid var(--border);border-radius:14px;
-    padding:16px 12px;cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;}
-  .ha-tile:hover{transform:translateY(-2px);border-color:#4fc3f7;}
-  .ha-tile.on{border-color:#ffd166;background:rgba(255,209,102,.07);}
-  .ha-tile.unavailable{opacity:.4;cursor:default;}
-  .ha-icon{font-size:1.8rem;}
-  .ha-name{font-size:.78rem;font-weight:700;color:var(--text);}
-  .ha-state{font-size:.68rem;color:var(--muted);text-transform:capitalize;}
-  .ha-state.on{color:#ffd166;}
-  .ha-state.off{color:var(--muted);}
-  .ha-config-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-  .ha-config-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-    padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
-  .ha-config-row input:focus{border-color:#4fc3f7;}
-  .ha-status{font-size:.72rem;display:flex;align-items:center;gap:5px;}
-  .ha-dot{width:7px;height:7px;border-radius:50%;background:#8b949e;}
-  .ha-dot.connected{background:#06d6a0;}
-  .ha-dot.error{background:#ff6b6b;}
 
   /* ── SELECTED DAY ── */
   .selected-day-panel{grid-column:1/3;animation:fadeIn .3s ease;}
@@ -217,21 +256,43 @@
   .sel-event-time{font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;min-width:60px;}
   .sel-event-title{font-size:.9rem;font-weight:600;}
   .sel-event-person{font-size:.72rem;}
-  .delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;transition:color .2s;}
+  .delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;}
   .delete-btn:hover{color:#ff6b6b;}
   .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;}
+
+  /* ── HA ── */
+  .ha-panel{grid-column:1/3;}
+  .ha-setup{text-align:center;padding:16px;color:var(--muted);font-size:.85rem;}
+  .ha-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+  .ha-tile{background:var(--surface2);border:1px solid var(--border);border-radius:14px;
+    padding:16px 12px;cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .ha-tile:hover{transform:translateY(-2px);border-color:#4fc3f7;}
+  .ha-tile.on{border-color:#ffd166;background:rgba(255,209,102,.07);}
+  .ha-tile.unavailable{opacity:.4;cursor:default;}
+  .ha-icon{font-size:1.8rem;}.ha-name{font-size:.78rem;font-weight:700;}
+  .ha-state{font-size:.68rem;color:var(--muted);text-transform:capitalize;}
+  .ha-state.on{color:#ffd166;}
+  .ha-status{font-size:.72rem;display:flex;align-items:center;gap:5px;}
+  .ha-dot{width:7px;height:7px;border-radius:50%;background:#8b949e;}
+  .ha-dot.connected{background:#06d6a0;}.ha-dot.error{background:#ff6b6b;}
 
   /* ── TOAST ── */
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
     background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 20px;
-    font-size:.85rem;font-weight:600;transition:transform .3s;z-index:300;white-space:nowrap;}
+    font-size:.85rem;font-weight:600;transition:transform .3s;z-index:600;white-space:nowrap;}
   .toast.show{transform:translateX(-50%) translateY(0);}
+
+  /* ── FIREBASE SETUP BANNER ── */
+  #fb-setup-banner{background:rgba(255,140,66,.1);border:1px solid var(--bradford);border-radius:12px;
+    padding:14px 18px;margin:16px 32px 0;font-size:.85rem;display:none;}
+  #fb-setup-banner.visible{display:block;}
+  #fb-setup-banner a{color:var(--bradford);font-weight:700;}
 
   @media(max-width:900px){
     .main{grid-template-columns:1fr 1fr;padding:16px;}
     .members-panel,.chores-panel,.grocery-panel,.ha-panel,.selected-day-panel{grid-column:1/-1;}
     .day-event-chip{display:none;}
-    #my-day-banner{margin:16px 16px 0;}
+    #my-day-banner,#fb-setup-banner{margin-left:16px;margin-right:16px;}
   }
   @media(max-width:600px){
     .main{grid-template-columns:1fr;padding:12px;}
@@ -239,11 +300,9 @@
     .member-picker{grid-template-columns:1fr 1fr;}
     .week-strip{gap:3px;}
     .day-col{padding:8px 4px;}
-    .day-name{font-size:.7rem;}
-    .day-num{font-size:1rem;}
-    header{padding:14px 16px;}
-    .logo{font-size:1.5rem;}
-    #my-day-banner{margin:12px 12px 0;}
+    .day-name{font-size:.7rem;}.day-num{font-size:1rem;}
+    header{padding:14px 16px;}.logo{font-size:1.5rem;}
+    #my-day-banner,#fb-setup-banner{margin-left:12px;margin-right:12px;}
   }
   ::-webkit-scrollbar{width:4px;}
   ::-webkit-scrollbar-track{background:transparent;}
@@ -252,8 +311,21 @@
 </head>
 <body>
 
-<!-- ── WELCOME SCREEN ── -->
-<div id="welcome-screen">
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo">Young Family</div>
+  <div class="spinner"></div>
+  <div class="splash-msg" id="splash-msg">Connecting...</div>
+</div>
+
+<!-- FIREBASE SETUP BANNER -->
+<div id="fb-setup-banner">
+  ⚠️ <strong>Firebase not configured yet.</strong> The dashboard is running in offline mode — changes won't sync between devices.
+  <a href="#" onclick="showFirebaseHelp()"> See setup instructions →</a>
+</div>
+
+<!-- WELCOME -->
+<div id="welcome-screen" style="display:none;">
   <div class="welcome-logo">Young Family</div>
   <div class="welcome-sub">Family Dashboard</div>
   <div class="welcome-prompt">Who's checking in? 👋</div>
@@ -261,48 +333,41 @@
   <button class="guest-btn" onclick="selectUser('Guest','👀','#8b949e','guest')">Just browsing as a guest</button>
 </div>
 
-<!-- ── WHAT'S NEW MODAL ── -->
+<!-- WHAT'S NEW MODAL -->
 <div class="modal-backdrop" id="whats-new-modal">
   <div class="modal">
-    <h2 id="wn-title">Hey Bradford! 👋</h2>
-    <p style="font-size:.85rem;color:var(--muted);">Anything new to add before you dive in?</p>
-    <div class="form-group">
-      <label>Got a new event to add?</label>
-      <input type="text" id="wn-event-title" placeholder="e.g. Bomb Squad drill Thursday 9am">
+    <h2 id="wn-title">Hey! 👋</h2>
+    <p style="font-size:.85rem;color:var(--muted);">Anything new before you dive in?</p>
+    <div class="form-group"><label>Got a new event?</label>
+      <input type="text" id="wn-event-title" placeholder="e.g. Dentist appointment Friday 2pm">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div class="form-group">
-        <label>Date</label>
-        <input type="date" id="wn-event-date">
-      </div>
-      <div class="form-group">
-        <label>Time</label>
-        <input type="time" id="wn-event-time">
-      </div>
+      <div class="form-group"><label>Date</label><input type="date" id="wn-event-date"></div>
+      <div class="form-group"><label>Time</label><input type="time" id="wn-event-time"></div>
     </div>
-    <div class="form-group">
-      <label>Anything to add to the grocery list?</label>
-      <textarea id="wn-groceries" placeholder="milk, eggs, dog food, ...&#10;(one per line or comma separated)"></textarea>
+    <div class="form-group"><label>Anything for the grocery list?</label>
+      <textarea id="wn-groceries" placeholder="milk, eggs, dog food...&#10;(one per line or comma separated)"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="skipWhatsNew()">Skip for now</button>
-      <button class="btn btn-primary" onclick="saveWhatsNew()">Save & Go In</button>
+      <button class="btn" onclick="skipWhatsNew()">Skip</button>
+      <button class="btn btn-primary" onclick="saveWhatsNew()">Save &amp; Go In</button>
     </div>
   </div>
 </div>
 
-<!-- ── ADD EVENT MODAL ── -->
+<!-- ADD EVENT MODAL -->
 <div class="modal-backdrop" id="modal-backdrop" onclick="closeModalBackdrop(event)">
   <div class="modal">
     <h2>Add Event</h2>
     <div class="form-group"><label>Person</label>
       <select id="evt-person">
-        <option value="Bradford">Bradford</option><option value="Brooke">Brooke</option>
-        <option value="Audrey">Audrey</option><option value="Christian">Christian</option>
-        <option value="Mitchum">Mitchum</option>
+        <option>Bradford</option><option>Brooke</option><option>Audrey</option>
+        <option>Christian</option><option>Mitchum</option>
       </select>
     </div>
-    <div class="form-group"><label>Event Title</label><input type="text" id="evt-title" placeholder="e.g. Work at Creative Academy"></div>
+    <div class="form-group"><label>Title</label>
+      <input type="text" id="evt-title" placeholder="e.g. Work at Creative Academy">
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="form-group"><label>Date</label><input type="date" id="evt-date"></div>
       <div class="form-group"><label>Time</label><input type="time" id="evt-time"></div>
@@ -322,20 +387,53 @@
   </div>
 </div>
 
-<!-- ── HA SETTINGS MODAL ── -->
+<!-- ADD CHORE MODAL -->
+<div class="modal-backdrop" id="add-chore-modal" onclick="closeAddChoreBackdrop(event)">
+  <div class="modal">
+    <h2>Add Chore</h2>
+    <div class="form-group"><label>Chore Name</label>
+      <input type="text" id="new-chore-name" placeholder="e.g. Let dogs out">
+    </div>
+    <div class="form-group"><label>Icon (emoji)</label>
+      <input type="text" id="new-chore-icon" placeholder="🐕" maxlength="2">
+    </div>
+    <div class="form-group"><label>How many times per day?</label>
+      <select id="new-chore-freq">
+        <option value="1">Once a day</option>
+        <option value="2">Twice a day</option>
+        <option value="3">3 times a day</option>
+        <option value="4">4 times a day</option>
+        <option value="0">No limit (as needed)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAddChoreModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewChore()">Add Chore</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHORE HISTORY MODAL -->
+<div class="modal-backdrop" id="history-modal" onclick="closeHistoryBackdrop(event)">
+  <div class="modal">
+    <h2 id="history-title">History</h2>
+    <div id="history-content" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeHistoryModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- HA MODAL -->
 <div class="modal-backdrop" id="ha-modal" onclick="closeHAModalBackdrop(event)">
   <div class="modal">
-    <h2>🏠 Home Assistant</h2>
-    <p style="font-size:.82rem;color:var(--muted);">Enter your Nabu Casa URL and a Long-Lived Access Token to connect.</p>
-    <div class="form-group">
-      <label>Nabu Casa URL</label>
+    <h2>🏡 Home Assistant</h2>
+    <p style="font-size:.82rem;color:var(--muted);">Enter your Nabu Casa URL and a Long-Lived Access Token.</p>
+    <div class="form-group"><label>Nabu Casa URL</label>
       <input type="url" id="ha-url-input" placeholder="https://YOUR-ID.ui.nabu.casa">
     </div>
-    <div class="form-group">
-      <label>Long-Lived Access Token</label>
-      <input type="password" id="ha-token-input" placeholder="Paste your HA token here">
+    <div class="form-group"><label>Long-Lived Access Token</label>
+      <input type="password" id="ha-token-input" placeholder="Paste your HA token">
     </div>
-    <p style="font-size:.75rem;color:var(--muted);">To get a token: HA → Profile → Security → Long-Lived Access Tokens → Create Token</p>
+    <p style="font-size:.75rem;color:var(--muted);">HA → Profile → Security → Long-Lived Access Tokens → Create Token</p>
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="disconnectHA()">Disconnect</button>
       <button class="btn" onclick="closeHAModal()">Cancel</button>
@@ -344,7 +442,7 @@
   </div>
 </div>
 
-<!-- ── APP ── -->
+<!-- APP -->
 <div id="app">
   <header>
     <div class="header-left">
@@ -354,10 +452,14 @@
         <span class="cu-name" id="cu-name"></span>
         <span class="cu-switch">↩ switch</span>
       </div>
+      <div class="sync-indicator">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-text">connecting</span>
+      </div>
     </div>
     <div class="header-right">
       <div class="date-display" id="date-display"></div>
-      <div id="weather-widget" onclick="refreshWeather()" title="Click for your location">
+      <div id="weather-widget" onclick="refreshWeather()">
         <span id="weather-icon">🌤️</span>
         <div>
           <div style="display:flex;align-items:baseline;gap:5px;">
@@ -396,20 +498,10 @@
     <!-- Chores -->
     <div class="panel chores-panel">
       <div class="panel-title">
-        <span>🏠 Chores</span>
-        <span id="chores-done-count" style="font-size:.8rem;font-family:'Nunito',sans-serif;font-weight:600;color:var(--muted)"></span>
+        <span>🏠 Chores — Today</span>
+        <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openAddChoreModal()">+ Add</button>
       </div>
-      <div id="chores-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-      <div class="add-chore-row">
-        <input type="text" id="chore-input" placeholder="Add a chore..." onkeydown="if(event.key==='Enter')addChore()">
-        <select id="chore-assign" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;cursor:pointer;">
-          <option value="">Anyone</option>
-          <option value="Bradford">Bradford</option><option value="Brooke">Brooke</option>
-          <option value="Audrey">Audrey</option><option value="Christian">Christian</option>
-          <option value="Mitchum">Mitchum</option>
-        </select>
-        <button class="btn btn-primary" onclick="addChore()">Add</button>
-      </div>
+      <div id="chores-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
     <!-- Members -->
@@ -418,27 +510,23 @@
       <div class="members-grid" id="members-grid"></div>
     </div>
 
-    <!-- Grocery List -->
+    <!-- Grocery -->
     <div class="panel grocery-panel">
       <div class="panel-title">
         <span>🛒 Grocery List</span>
-        <span id="grocery-count" class="grocery-count"></span>
+        <span id="grocery-count" style="font-size:.8rem;font-family:'Nunito',sans-serif;font-weight:600;color:var(--muted)"></span>
       </div>
       <div class="grocery-categories" id="grocery-categories"></div>
       <div id="grocery-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
       <div class="add-grocery-row">
         <input type="text" id="grocery-input" placeholder="Add item..." onkeydown="if(event.key==='Enter')addGroceryItem()">
         <select id="grocery-cat" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;cursor:pointer;">
-          <option value="General">General</option>
-          <option value="Produce">Produce 🥦</option>
-          <option value="Dairy">Dairy 🥛</option>
-          <option value="Meat">Meat 🥩</option>
-          <option value="Bakery">Bakery 🍞</option>
-          <option value="Frozen">Frozen ❄️</option>
-          <option value="Household">Household 🧹</option>
-          <option value="Pets">Pets 🐕</option>
+          <option value="General">General</option><option value="Produce">Produce 🥦</option>
+          <option value="Dairy">Dairy 🥛</option><option value="Meat">Meat 🥩</option>
+          <option value="Bakery">Bakery 🍞</option><option value="Frozen">Frozen ❄️</option>
+          <option value="Household">Household 🧹</option><option value="Pets">Pets 🐕</option>
         </select>
-        <button class="btn" style="background:rgba(255,209,102,.15);border-color:#ffd166;color:#ffd166;" onclick="addGroceryItem()">Add</button>
+        <button class="btn btn-yellow" onclick="addGroceryItem()">Add</button>
       </div>
       <button class="btn btn-danger" style="font-size:.75rem;padding:5px 10px;align-self:flex-start;" onclick="clearGotItems()">Clear checked</button>
     </div>
@@ -448,17 +536,17 @@
       <div class="panel-title">
         <span>🏡 Home Assistant</span>
         <div style="display:flex;align-items:center;gap:10px;">
-          <div class="ha-status"><div class="ha-dot" id="ha-dot"></div><span id="ha-status-text" style="font-size:.72rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Not connected</span></div>
+          <div class="ha-status"><div class="ha-dot" id="ha-dot"></div>
+            <span id="ha-status-text" style="font-size:.72rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Not connected</span>
+          </div>
           <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openHAModal()">⚙️ Setup</button>
           <button class="btn btn-primary" style="font-size:.72rem;padding:4px 10px;" onclick="refreshHA()">↻ Refresh</button>
         </div>
       </div>
-      <div id="ha-content">
-        <div class="ha-setup">
-          Connect your Nabu Casa account to control lights, locks, thermostats and more right from the dashboard.<br><br>
-          <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button>
-        </div>
-      </div>
+      <div id="ha-content"><div class="ha-setup">
+        Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br>
+        <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button>
+      </div></div>
     </div>
   </div>
 </div>
@@ -466,6 +554,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ── CONSTANTS ──
 const MEMBERS=[
   {key:'Bradford',role:'Bomb Squad / Dad',cls:'bradford',emoji:'👨',color:'#ff8c42'},
   {key:'Brooke',  role:'Creative Academy', cls:'brooke',  emoji:'👩',color:'#ff7eb3'},
@@ -476,27 +565,134 @@ const MEMBERS=[
 const MEMBER_HEX=Object.fromEntries(MEMBERS.map(m=>[m.key,m.color]));
 
 const today=new Date();
+const todayStr=fmtDate(today);
 function fmtDate(d){return d.toISOString().split('T')[0];}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 
 let currentUser=JSON.parse(sessionStorage.getItem('young_user')||'null');
+let fbReady=false;
 
-let events=JSON.parse(localStorage.getItem('young_events')||'null')||[];
-let chores=JSON.parse(localStorage.getItem('young_chores')||'null')||[];
-let groceries=JSON.parse(localStorage.getItem('young_groceries')||'null')||[];
-
+// Local state (mirrors Firebase)
+let events={};
+let chores={};
+let groceries={};
+let choreLog={};
+let selectedDate=todayStr;
+let selectedGroceryCat='All';
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
-let selectedDate=fmtDate(today);
-let selectedGroceryCat='All';
 
-function saveData(){
+// ── FIREBASE INIT ──
+function waitForFirebase(){
+  if(window._fbReady){onFirebaseReady();}
+  else{document.addEventListener('fb-ready',onFirebaseReady);}
+  setTimeout(()=>{
+    if(!fbReady){
+      // Firebase config not filled in — run in offline mode
+      document.getElementById('splash').classList.add('hidden');
+      document.getElementById('fb-setup-banner').classList.add('visible');
+      setSyncStatus('offline');
+      showWelcome();
+    }
+  },4000);
+}
+
+function onFirebaseReady(){
+  fbReady=true;
+  const cfg=document.querySelector('script[type="module"]').textContent;
+  if(cfg.includes('REPLACE_WITH_YOUR_API_KEY')){
+    // Not configured
+    document.getElementById('splash').classList.add('hidden');
+    document.getElementById('fb-setup-banner').classList.add('visible');
+    setSyncStatus('offline');
+    showWelcome();
+    return;
+  }
+  document.getElementById('splash-msg').textContent='Syncing family data...';
+  setSyncStatus('connecting');
+  subscribeAll();
+}
+
+function subscribeAll(){
+  const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef}=window._fb;
+  let loaded=0;
+  const check=()=>{if(++loaded>=4){
+    document.getElementById('splash').classList.add('hidden');
+    setSyncStatus('live');
+    showWelcome();
+  }};
+  onValue(eventsRef(),   snap=>{events   =snap.val()||{};renderAll();check();});
+  onValue(choresRef(),   snap=>{chores   =snap.val()||{};renderChores();check();});
+  onValue(groceriesRef(),snap=>{groceries=snap.val()||{};renderGroceries();check();});
+  onValue(choreLogRef(), snap=>{choreLog =snap.val()||{};renderChores();check();});
+}
+
+function setSyncStatus(status){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-text');
+  if(!dot)return;
+  dot.className='sync-dot'+(status==='live'?' live':status==='error'?' error':'');
+  txt.textContent=status==='live'?'live':status==='offline'?'offline':status==='error'?'error':'connecting';
+}
+
+// ── LOCAL FALLBACK (offline mode) ──
+function loadLocal(){
+  events   =JSON.parse(localStorage.getItem('young_events')||'{}');
+  chores   =JSON.parse(localStorage.getItem('young_chores')||'{}');
+  groceries=JSON.parse(localStorage.getItem('young_groceries')||'{}');
+  choreLog =JSON.parse(localStorage.getItem('young_chorelog')||'{}');
+}
+function saveLocal(){
   localStorage.setItem('young_events',JSON.stringify(events));
   localStorage.setItem('young_chores',JSON.stringify(chores));
   localStorage.setItem('young_groceries',JSON.stringify(groceries));
+  localStorage.setItem('young_chorelog',JSON.stringify(choreLog));
 }
 
-// ── WELCOME ──
+// ── DB HELPERS ──
+async function dbSet(path,value){
+  if(fbReady&&window._fb){
+    const {ref,set,db}=window._fb;
+    await set(ref(db,path),value);
+  } else {saveLocal();}
+}
+async function dbPush(path,value){
+  if(fbReady&&window._fb){
+    const {ref,push,db}=window._fb;
+    const r=await push(ref(db,path),value);
+    return r.key;
+  } else {
+    const key='local_'+Date.now();
+    if(path.startsWith('events'))events[key]=value;
+    else if(path.startsWith('chores'))chores[key]=value;
+    else if(path.startsWith('groceries'))groceries[key]=value;
+    saveLocal();return key;
+  }
+}
+async function dbRemove(path){
+  if(fbReady&&window._fb){
+    const {ref,remove,db}=window._fb;
+    await remove(ref(db,path));
+  } else {saveLocal();}
+}
+async function dbUpdate(path,value){
+  if(fbReady&&window._fb){
+    const {ref,update,db}=window._fb;
+    await update(ref(db,path),value);
+  } else {saveLocal();}
+}
+
+// ── WELCOME & USER SELECTION ──
+function showWelcome(){
+  buildPicker();
+  if(currentUser){
+    startApp();
+  } else {
+    const ws=document.getElementById('welcome-screen');
+    ws.style.display='flex';
+  }
+}
+
 function buildPicker(){
   const p=document.getElementById('member-picker');p.innerHTML='';
   MEMBERS.forEach(m=>{
@@ -514,17 +710,14 @@ function selectUser(name,emoji,color,cls){
   sessionStorage.setItem('young_user',JSON.stringify(currentUser));
   const ws=document.getElementById('welcome-screen');
   ws.classList.add('hidden');
-  setTimeout(()=>{ws.style.display='none';},500);
-  document.getElementById('app').classList.add('visible');
-  if(name!=='Guest'){
-    showWhatsNew(name);
-  } else {
-    initApp();
-  }
+  setTimeout(()=>ws.style.display='none',500);
+  if(name!=='Guest'){showWhatsNew(name);}
+  else{startApp();}
 }
 
 function switchUser(){
   sessionStorage.removeItem('young_user');
+  currentUser=null;
   document.getElementById('app').classList.remove('visible');
   const ws=document.getElementById('welcome-screen');
   ws.style.display='flex';ws.classList.remove('hidden');
@@ -533,60 +726,70 @@ function switchUser(){
 // ── WHAT'S NEW ──
 function showWhatsNew(name){
   document.getElementById('wn-title').textContent=`Hey ${name}! 👋`;
-  document.getElementById('wn-event-date').value=fmtDate(today);
+  document.getElementById('wn-event-date').value=todayStr;
   document.getElementById('wn-event-title').value='';
   document.getElementById('wn-event-time').value='';
   document.getElementById('wn-groceries').value='';
   document.getElementById('whats-new-modal').classList.add('open');
 }
-
-function saveWhatsNew(){
+async function saveWhatsNew(){
   const title=document.getElementById('wn-event-title').value.trim();
-  const date=document.getElementById('wn-event-date').value;
-  const time=document.getElementById('wn-event-time').value;
+  const date =document.getElementById('wn-event-date').value;
+  const time =document.getElementById('wn-event-time').value;
   const groceryText=document.getElementById('wn-groceries').value.trim();
-
   if(title&&date){
-    events.push({id:Date.now(),person:currentUser.name,title,date,time,type:'personal'});
-    showToast(`✅ Event added!`);
+    await dbPush('events',{person:currentUser.name,title,date,time,type:'personal',created:Date.now()});
+    showToast('✅ Event added!');
   }
   if(groceryText){
     const items=groceryText.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
-    items.forEach(label=>{
-      groceries.push({id:Date.now()+Math.random(),label,got:false,cat:'General'});
-    });
-    showToast(`🛒 ${items.length} grocery item${items.length>1?'s':''} added!`);
+    for(const label of items){await dbPush('groceries',{label,got:false,cat:'General',addedBy:currentUser.name});}
+    showToast(`🛒 ${items.length} item${items.length>1?'s':''} added!`);
   }
-  saveData();
   document.getElementById('whats-new-modal').classList.remove('open');
-  initApp();
+  startApp();
 }
-
 function skipWhatsNew(){
   document.getElementById('whats-new-modal').classList.remove('open');
-  initApp();
+  startApp();
 }
 
-// ── INIT APP ──
-function initApp(){
+// ── START APP ──
+function startApp(){
+  document.getElementById('app').classList.add('visible');
   document.getElementById('cu-dot').style.background=currentUser.color;
   document.getElementById('cu-name').textContent=currentUser.name;
-  const sel=document.getElementById('evt-person');
-  if(sel&&currentUser.name!=='Guest')sel.value=currentUser.name;
+  if(!fbReady)loadLocal();
   updateDateDisplay();
+  renderAll();
+  fetchWeather(36.3348,-92.3849,false);
+  updateNotifBtn(Notification.permission||'default');
+  if(haConfig)refreshHA(); else renderHASetup();
+  checkDailyReset();
+  if(currentUser.name!=='Guest')
+    setTimeout(()=>{if(Notification.permission==='default')showToast(`👋 Hi ${currentUser.name}! Tap 🔔 Alerts for reminders.`,5000);},1500);
+}
+
+function renderAll(){
   renderMyDayBanner();
   renderWeek();
   renderSelectedDay();
   renderMembers();
   renderChores();
   renderGroceries();
-  fetchWeather(36.3348,-92.3849,false);
-  updateNotifBtn(Notification.permission||'default');
-  if(haConfig) refreshHA();
-  else renderHASetup();
-  if(currentUser.name!=='Guest') setTimeout(()=>{
-    if(Notification.permission==='default')showToast(`👋 Hi ${currentUser.name}! Tap 🔔 Alerts to get event reminders.`,5000);
-  },1500);
+}
+
+// ── DAILY RESET ──
+async function checkDailyReset(){
+  if(!fbReady)return;
+  const {ref,get,db}=window._fb;
+  const snap=await get(ref(db,'settings/lastReset'));
+  const lastReset=snap.val()||'';
+  if(lastReset!==todayStr){
+    // Archive yesterday's log already stored in choreLog, then reset counts
+    await dbSet('settings/lastReset',todayStr);
+    showToast('🌅 New day — chores have been reset!',4000);
+  }
 }
 
 // ── MY DAY BANNER ──
@@ -596,14 +799,14 @@ function renderMyDayBanner(){
   banner.style.display='flex';
   banner.style.background=`color-mix(in srgb,${currentUser.color} 8%,var(--surface))`;
   banner.style.borderColor=`color-mix(in srgb,${currentUser.color} 30%,var(--border))`;
-  const myEvts=events.filter(e=>e.person===currentUser.name&&e.date===fmtDate(today))
+  const myEvts=Object.values(events).filter(e=>e.person===currentUser.name&&e.date===todayStr)
     .sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const h=new Date().getHours();
   document.getElementById('mdb-avatar').textContent=currentUser.emoji;
   document.getElementById('mdb-greeting').textContent=`${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, ${currentUser.name}! ${h<12?'☀️':h<17?'🌤️':'🌙'}`;
-  document.getElementById('mdb-summary').textContent=myEvts.length?`You have ${myEvts.length} event${myEvts.length>1?'s':''} today:`:'You\'ve got a free day today! 🎉';
-  document.getElementById('mdb-events').innerHTML=myEvts.map(e=>`
-    <div class="mdb-chip" style="background:${currentUser.color}22;color:${currentUser.color}">${e.time?formatTime(e.time)+' · ':''}${e.title}</div>`).join('');
+  document.getElementById('mdb-summary').textContent=myEvts.length?`You have ${myEvts.length} event${myEvts.length>1?'s':''} today:`:'Free day — enjoy! 🎉';
+  document.getElementById('mdb-events').innerHTML=myEvts.map(e=>
+    `<div class="mdb-chip" style="background:${currentUser.color}22;color:${currentUser.color}">${e.time?formatTime(e.time)+' · ':''}${e.title}</div>`).join('');
 }
 
 // ── DATE ──
@@ -616,16 +819,17 @@ function renderWeek(){
   const strip=document.getElementById('week-strip');strip.innerHTML='';
   const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const start=addDays(today,-2);
+  const evList=Object.values(events);
   for(let i=0;i<7;i++){
     const d=addDays(start,i);const ds=fmtDate(d);
-    const dayEvts=events.filter(e=>e.date===ds);
+    const dayEvts=evList.filter(e=>e.date===ds);
     const col=document.createElement('div');
-    col.className='day-col'+(ds===fmtDate(today)?' today':'')+(ds===selectedDate?' selected':'');
+    col.className='day-col'+(ds===todayStr?' today':'')+(ds===selectedDate?' selected':'');
     col.onclick=()=>{selectedDate=ds;renderWeek();renderSelectedDay();renderMembers();};
     col.innerHTML=`<div class="day-name">${dayNames[d.getDay()]}</div>
       <div class="day-num">${d.getDate()}</div>
       <div class="day-dots">${[...new Set(dayEvts.map(e=>e.person))].map(p=>`<div class="dot" style="background:${MEMBER_HEX[p]||'#888'}" title="${p}"></div>`).join('')}</div>
-      <div class="day-event-list">${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${(MEMBER_HEX[e.person]||'#888')}22;color:${MEMBER_HEX[e.person]||'#888'}">${e.title}</div>`).join('')}</div>`;
+      ${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${(MEMBER_HEX[e.person]||'#888')}22;color:${MEMBER_HEX[e.person]||'#888'}">${e.title}</div>`).join('')}`;
     strip.appendChild(col);
   }
 }
@@ -636,25 +840,30 @@ function renderSelectedDay(){
   const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-  const dayEvts=events.filter(e=>e.date===selectedDate).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+  const dayEvts=Object.entries(events)
+    .filter(([,e])=>e.date===selectedDate)
+    .sort(([,a],[,b])=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const list=document.getElementById('selected-events-list');
   if(!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
-  list.innerHTML=dayEvts.map(e=>{
+  list.innerHTML=dayEvts.map(([id,e])=>{
     const isMe=currentUser&&e.person===currentUser.name;
     return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}">
       <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
       <div><div class="sel-event-title">${e.title}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
       <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person} · ${capitalize(e.type)}</div></div>
-      <button class="delete-btn" onclick="deleteEvent(${e.id})">✕</button></div>`;
+      <button class="delete-btn" onclick="deleteEvent('${id}')">✕</button></div>`;
   }).join('');
 }
-function deleteEvent(id){events=events.filter(e=>e.id!==id);saveData();renderWeek();renderSelectedDay();renderMembers();renderMyDayBanner();}
+async function deleteEvent(id){
+  await dbRemove(`events/${id}`);
+}
 
 // ── MEMBERS ──
 function renderMembers(){
   const grid=document.getElementById('members-grid');grid.innerHTML='';
+  const evList=Object.values(events);
   MEMBERS.forEach((m,i)=>{
-    const dayEvts=events.filter(e=>e.person===m.key&&e.date===selectedDate);
+    const dayEvts=evList.filter(e=>e.person===m.key&&e.date===selectedDate);
     const isWork=dayEvts.some(e=>e.type==='work');
     const isAway=dayEvts.some(e=>e.type==='travel'||e.type==='away');
     const isMe=currentUser&&m.key===currentUser.name;
@@ -679,186 +888,155 @@ function renderMembers(){
 // ── CHORES ──
 function renderChores(){
   const list=document.getElementById('chores-list');list.innerHTML='';
-  const done=chores.filter(c=>c.done).length;
-  document.getElementById('chores-done-count').textContent=`${done}/${chores.length} done`;
-  chores.forEach(c=>{
-    const ac=c.assign&&MEMBER_HEX[c.assign]?MEMBER_HEX[c.assign]:'var(--muted)';
-    const item=document.createElement('div');item.className='chore-item';
-    item.innerHTML=`<div class="chore-check ${c.done?'done':''}" onclick="toggleChore(${c.id})">${c.done?'✓':''}</div>
-      <div class="chore-label ${c.done?'done':''}">${c.label}</div>
-      ${c.assign?`<span class="chore-assign" style="background:${ac}22;color:${ac}">${c.assign}</span>`:''}
-      <button class="delete-btn" onclick="deleteChore(${c.id})">✕</button>`;
+  const choreArr=Object.entries(chores);
+  if(!choreArr.length){
+    list.innerHTML='<div class="empty-state">No chores yet — add some above!</div>';return;
+  }
+  choreArr.forEach(([id,chore])=>{
+    // Get today's log for this chore
+    const todayLog=choreLog[todayStr]?.[id]||{};
+    const counts={}; // {person: count}
+    Object.values(todayLog).forEach(entry=>{
+      counts[entry.person]=(counts[entry.person]||0)+1;
+    });
+    const totalDone=Object.values(counts).reduce((a,b)=>a+b,0);
+    const freq=parseInt(chore.freq)||0;
+    const complete=freq>0&&totalDone>=freq;
+
+    const item=document.createElement('div');
+    item.className='chore-item';
+    const counterChips=Object.entries(counts).map(([person,count])=>{
+      const color=MEMBER_HEX[person]||'#888';
+      return`<div class="counter-chip" style="background:${color}22;color:${color}">
+        ${person} ×${count}
+        ${currentUser&&currentUser.name===person?`<span class="counter-x" onclick="undoChore('${id}','${person}')">undo</span>`:''}
+      </div>`;
+    }).join('');
+
+    item.innerHTML=`
+      <div class="chore-top">
+        <div class="chore-icon">${chore.icon||'✅'}</div>
+        <div class="chore-info">
+          <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">${chore.name}</div>
+          <div class="chore-freq">${freq>0?`${totalDone}/${freq} times today`:'Done '+totalDone+' time'+( totalDone!==1?'s':'')+' today'}</div>
+        </div>
+        <div class="chore-actions">
+          ${!complete||freq===0?`<button class="chore-add-btn" onclick="logChore('${id}')">I did it ✓</button>`:'<span style="color:#06d6a0;font-size:.8rem;font-weight:700;">✓ Done!</span>'}
+          <button class="delete-btn" onclick="deleteChore('${id}')">✕</button>
+        </div>
+      </div>
+      ${counterChips?`<div class="chore-counters">${counterChips}</div>`:''}
+      <button class="chore-history-btn" onclick="showChoreHistory('${id}','${chore.name}')">View history →</button>`;
     list.appendChild(item);
   });
 }
-function toggleChore(id){const c=chores.find(c=>c.id===id);if(c)c.done=!c.done;saveData();renderChores();}
-function deleteChore(id){chores=chores.filter(c=>c.id!==id);saveData();renderChores();}
-function addChore(){
-  const inp=document.getElementById('chore-input'),assign=document.getElementById('chore-assign').value,label=inp.value.trim();
-  if(!label)return;chores.push({id:Date.now(),label,done:false,assign});inp.value='';saveData();renderChores();
+
+async function logChore(choreId){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Please select yourself first');return;}
+  const entry={person:currentUser.name,time:new Date().toISOString()};
+  await dbPush(`choreLog/${todayStr}/${choreId}`,entry);
+  showToast(`✅ Logged for ${currentUser.name}!`);
 }
+
+async function undoChore(choreId,person){
+  // Find and remove the last log entry for this person today
+  const todayLog=choreLog[todayStr]?.[choreId]||{};
+  const entries=Object.entries(todayLog).filter(([,v])=>v.person===person);
+  if(!entries.length)return;
+  const lastKey=entries[entries.length-1][0];
+  await dbRemove(`choreLog/${todayStr}/${choreId}/${lastKey}`);
+  showToast(`Undone for ${person}`);
+}
+
+async function deleteChore(id){
+  if(!confirm('Delete this chore?'))return;
+  await dbRemove(`chores/${id}`);
+  await dbRemove(`choreLog/${todayStr}/${id}`);
+}
+
+function openAddChoreModal(){
+  document.getElementById('new-chore-name').value='';
+  document.getElementById('new-chore-icon').value='';
+  document.getElementById('new-chore-freq').value='1';
+  document.getElementById('add-chore-modal').classList.add('open');
+}
+function closeAddChoreModal(){document.getElementById('add-chore-modal').classList.remove('open');}
+function closeAddChoreBackdrop(e){if(e.target===document.getElementById('add-chore-modal'))closeAddChoreModal();}
+
+async function saveNewChore(){
+  const name=document.getElementById('new-chore-name').value.trim();
+  const icon=document.getElementById('new-chore-icon').value.trim()||'✅';
+  const freq=document.getElementById('new-chore-freq').value;
+  if(!name){showToast('Please enter a chore name');return;}
+  await dbPush('chores',{name,icon,freq:parseInt(freq),created:Date.now()});
+  closeAddChoreModal();
+  showToast(`✅ "${name}" added to chores!`);
+}
+
+function showChoreHistory(choreId,choreName){
+  document.getElementById('history-title').textContent=`📋 ${choreName} — History`;
+  const content=document.getElementById('history-content');
+  content.innerHTML='';
+  const days=Object.keys(choreLog).sort().reverse().slice(0,14);
+  if(!days.length){content.innerHTML='<div class="empty-state">No history yet.</div>';
+  } else {
+    days.forEach(date=>{
+      const dayLog=choreLog[date]?.[choreId]||{};
+      const counts={};
+      Object.values(dayLog).forEach(e=>{counts[e.person]=(counts[e.person]||0)+1;});
+      if(!Object.keys(counts).length)return;
+      const d=new Date(date+'T12:00:00');
+      const label=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      const chips=Object.entries(counts).map(([person,count])=>{
+        const color=MEMBER_HEX[person]||'#888';
+        return`<div class="history-chip" style="background:${color}22;color:${color}">${person} ×${count}</div>`;
+      }).join('');
+      content.innerHTML+=`<div class="history-entry"><div class="history-date">${label}</div><div class="history-chips">${chips}</div></div>`;
+    });
+    if(!content.innerHTML)content.innerHTML='<div class="empty-state">No history yet.</div>';
+  }
+  document.getElementById('history-modal').classList.add('open');
+}
+function closeHistoryModal(){document.getElementById('history-modal').classList.remove('open');}
+function closeHistoryBackdrop(e){if(e.target===document.getElementById('history-modal'))closeHistoryModal();}
 
 // ── GROCERIES ──
 function renderGroceries(){
-  const cats=['All',...new Set(groceries.map(g=>g.cat))];
+  const gArr=Object.entries(groceries);
+  const cats=['All',...new Set(gArr.map(([,g])=>g.cat))];
   const catDiv=document.getElementById('grocery-categories');
   catDiv.innerHTML=cats.map(c=>`<div class="cat-chip${c===selectedGroceryCat?' active':''}" onclick="setGroceryCat('${c}')">${c}</div>`).join('');
-  const filtered=selectedGroceryCat==='All'?groceries:groceries.filter(g=>g.cat===selectedGroceryCat);
+  const filtered=selectedGroceryCat==='All'?gArr:gArr.filter(([,g])=>g.cat===selectedGroceryCat);
   const list=document.getElementById('grocery-list');list.innerHTML='';
-  const remaining=groceries.filter(g=>!g.got).length;
-  document.getElementById('grocery-count').textContent=`${remaining} item${remaining!==1?'s':''} left`;
-  filtered.forEach(g=>{
+  const remaining=gArr.filter(([,g])=>!g.got).length;
+  document.getElementById('grocery-count').textContent=`${remaining} left`;
+  filtered.forEach(([id,g])=>{
     const item=document.createElement('div');item.className='grocery-item';
-    item.innerHTML=`<div class="grocery-check ${g.got?'got':''}" onclick="toggleGrocery(${g.id})">${g.got?'✓':''}</div>
+    item.innerHTML=`<div class="grocery-check ${g.got?'got':''}" onclick="toggleGrocery('${id}',${!g.got})">${g.got?'✓':''}</div>
       <div class="grocery-label ${g.got?'got':''}">${g.label}</div>
       <span class="grocery-cat-badge">${g.cat}</span>
-      <button class="delete-btn" onclick="deleteGrocery(${g.id})">✕</button>`;
+      <button class="delete-btn" onclick="deleteGrocery('${id}')">✕</button>`;
     list.appendChild(item);
   });
 }
 function setGroceryCat(cat){selectedGroceryCat=cat;renderGroceries();}
-function toggleGrocery(id){const g=groceries.find(g=>g.id===id);if(g)g.got=!g.got;saveData();renderGroceries();}
-function deleteGrocery(id){groceries=groceries.filter(g=>g.id!==id);saveData();renderGroceries();}
-function addGroceryItem(){
-  const inp=document.getElementById('grocery-input'),cat=document.getElementById('grocery-cat').value,label=inp.value.trim();
-  if(!label)return;groceries.push({id:Date.now(),label,got:false,cat});inp.value='';saveData();renderGroceries();
+async function toggleGrocery(id,val){await dbUpdate(`groceries/${id}`,{got:val});}
+async function deleteGrocery(id){await dbRemove(`groceries/${id}`);}
+async function addGroceryItem(){
+  const inp=document.getElementById('grocery-input');
+  const cat=document.getElementById('grocery-cat').value;
+  const label=inp.value.trim();
+  if(!label)return;
+  await dbPush('groceries',{label,got:false,cat,addedBy:currentUser?.name||'Guest'});
+  inp.value='';
 }
-function clearGotItems(){groceries=groceries.filter(g=>!g.got);saveData();renderGroceries();showToast('🛒 Cleared checked items');}
-
-// ── HOME ASSISTANT ──
-function openHAModal(){
-  if(haConfig){
-    document.getElementById('ha-url-input').value=haConfig.url||'';
-    document.getElementById('ha-token-input').value=haConfig.token||'';
-  }
-  document.getElementById('ha-modal').classList.add('open');
-}
-function closeHAModal(){document.getElementById('ha-modal').classList.remove('open');}
-function closeHAModalBackdrop(e){if(e.target===document.getElementById('ha-modal'))closeHAModal();}
-
-function saveHAConfig(){
-  const url=document.getElementById('ha-url-input').value.trim().replace(/\/$/,'');
-  const token=document.getElementById('ha-token-input').value.trim();
-  if(!url||!token){showToast('❌ Please enter both URL and token');return;}
-  haConfig={url,token};
-  localStorage.setItem('young_ha_config',JSON.stringify(haConfig));
-  closeHAModal();
-  refreshHA();
-}
-function disconnectHA(){
-  haConfig=null;localStorage.removeItem('young_ha_config');
-  closeHAModal();renderHASetup();
-  document.getElementById('ha-dot').className='ha-dot';
-  document.getElementById('ha-status-text').textContent='Not connected';
+async function clearGotItems(){
+  const toDelete=Object.entries(groceries).filter(([,g])=>g.got).map(([id])=>id);
+  for(const id of toDelete)await dbRemove(`groceries/${id}`);
+  showToast('🛒 Cleared checked items');
 }
 
-function renderHASetup(){
-  document.getElementById('ha-content').innerHTML=`<div class="ha-setup">
-    Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br>
-    <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button>
-  </div>`;
-}
-
-async function refreshHA(){
-  if(!haConfig)return;
-  document.getElementById('ha-status-text').textContent='Connecting...';
-  document.getElementById('ha-dot').className='ha-dot';
-  try{
-    const res=await fetch(`${haConfig.url}/api/states`,{
-      headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'}
-    });
-    if(!res.ok)throw new Error(`HTTP ${res.status}`);
-    const all=await res.json();
-    // Filter to useful domains
-    const domains=['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'];
-    haEntities=all.filter(e=>domains.includes(e.entity_id.split('.')[0]));
-    document.getElementById('ha-dot').className='ha-dot connected';
-    document.getElementById('ha-status-text').textContent=`Connected · ${haEntities.length} entities`;
-    renderHATiles();
-  }catch(err){
-    document.getElementById('ha-dot').className='ha-dot error';
-    document.getElementById('ha-status-text').textContent='Connection failed';
-    document.getElementById('ha-content').innerHTML=`<div class="ha-setup">
-      Could not connect to Home Assistant. Check your URL and token, and make sure your Nabu Casa remote access is enabled.<br><br>
-      <span style="color:#ff6b6b;font-size:.8rem;">Error: ${err.message}</span><br><br>
-      <button class="btn btn-primary" onclick="openHAModal()">Try Again</button>
-    </div>`;
-  }
-}
-
-function renderHATiles(){
-  // Show lights, switches, locks, climate — most useful for a family dashboard
-  const priority=['light','switch','lock','climate','cover'];
-  const sorted=[...haEntities].sort((a,b)=>{
-    const da=priority.indexOf(a.entity_id.split('.')[0]);
-    const db=priority.indexOf(b.entity_id.split('.')[0]);
-    return(da===-1?99:da)-(db===-1?99:db);
-  });
-  const shown=sorted.slice(0,12);
-  document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${shown.map(e=>haTile(e)).join('')}</div>
-    ${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length} entities</div>`:''}`;
-}
-
-function haTile(entity){
-  const domain=entity.entity_id.split('.')[0];
-  const state=entity.state;
-  const name=entity.attributes.friendly_name||entity.entity_id;
-  const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
-  const unavailable=state==='unavailable'||state==='unknown';
-  const icon=haIcon(domain,state,entity.attributes);
-  const stateLabel=haStateLabel(domain,state,entity.attributes);
-  const canToggle=['light','switch','input_boolean','cover'].includes(domain);
-  return`<div class="ha-tile${isOn?' on':''}${unavailable?' unavailable':''}"
-    ${canToggle&&!unavailable?`onclick="haToggle('${entity.entity_id}','${domain}','${state}')"`:''}
-    title="${entity.entity_id}">
-    <div class="ha-icon">${icon}</div>
-    <div class="ha-name">${name.length>18?name.slice(0,16)+'…':name}</div>
-    <div class="ha-state ${isOn?'on':'off'}">${stateLabel}</div>
-  </div>`;
-}
-
-function haIcon(domain,state,attrs){
-  const on=state==='on'||state==='open'||state==='unlocked';
-  if(domain==='light')return on?'💡':'🔦';
-  if(domain==='switch')return on?'🔵':'⚪';
-  if(domain==='lock')return state==='locked'?'🔒':'🔓';
-  if(domain==='climate'){
-    const action=attrs.hvac_action;
-    if(action==='heating')return'🔥';if(action==='cooling')return'❄️';return'🌡️';
-  }
-  if(domain==='cover')return on?'⬆️':'⬇️';
-  if(domain==='binary_sensor')return on?'🟢':'⚫';
-  if(domain==='sensor')return'📊';
-  return'🏠';
-}
-
-function haStateLabel(domain,state,attrs){
-  if(domain==='climate'){
-    const temp=attrs.current_temperature;
-    const target=attrs.temperature;
-    return temp?`${temp}° → ${target||'?'}°`:state;
-  }
-  if(domain==='sensor')return`${state}${attrs.unit_of_measurement||''}`;
-  if(domain==='lock')return state==='locked'?'Locked':'Unlocked';
-  return state;
-}
-
-async function haToggle(entityId,domain,currentState){
-  if(!haConfig)return;
-  let service;
-  if(domain==='cover'){service=currentState==='open'?'close_cover':'open_cover';}
-  else{service=currentState==='on'?'turn_off':'turn_on';}
-  try{
-    await fetch(`${haConfig.url}/api/services/${domain}/${service}`,{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:entityId})
-    });
-    setTimeout(refreshHA,800);
-  }catch(e){showToast('❌ Could not control device');}
-}
-
-// ── MODALS ──
+// ── ADD EVENT ──
 function openModal(){
   document.getElementById('modal-backdrop').classList.add('open');
   document.getElementById('evt-date').value=selectedDate;
@@ -866,15 +1044,15 @@ function openModal(){
 }
 function closeModal(){document.getElementById('modal-backdrop').classList.remove('open');}
 function closeModalBackdrop(e){if(e.target===document.getElementById('modal-backdrop'))closeModal();}
-function saveEvent(){
+async function saveEvent(){
   const person=document.getElementById('evt-person').value;
   const title=document.getElementById('evt-title').value.trim();
   const date=document.getElementById('evt-date').value;
   const time=document.getElementById('evt-time').value;
   const type=document.getElementById('evt-type').value;
   if(!title||!date){alert('Please fill in a title and date.');return;}
-  events.push({id:Date.now(),person,title,date,time,type});
-  saveData();closeModal();renderWeek();renderSelectedDay();renderMembers();renderMyDayBanner();
+  await dbPush('events',{person,title,date,time,type,created:Date.now()});
+  closeModal();
   showToast(`✅ Event added for ${person}`);
   document.getElementById('evt-title').value='';document.getElementById('evt-time').value='';
 }
@@ -903,7 +1081,7 @@ function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3
 
 // ── NOTIFICATIONS ──
 async function requestNotifications(){
-  if(!('Notification'in window)){showToast('❌ Not supported in this browser');return;}
+  if(!('Notification'in window)){showToast('❌ Not supported');return;}
   const perm=await Notification.requestPermission();
   updateNotifBtn(perm);
   if(perm==='granted'){
@@ -920,7 +1098,7 @@ function updateNotifBtn(perm){
 }
 function scheduleNotifications(){
   if(Notification.permission!=='granted')return;
-  const myEvts=events.filter(e=>e.person===currentUser?.name&&e.date===fmtDate(today)&&e.time);
+  const myEvts=Object.values(events).filter(e=>e.person===currentUser?.name&&e.date===todayStr&&e.time);
   const now=new Date();
   myEvts.forEach(e=>{
     const[h,m]=e.time.split(':').map(Number);
@@ -932,11 +1110,84 @@ function scheduleNotifications(){
   });
 }
 
-// ── SERVICE WORKER ──
-if('serviceWorker'in navigator){
-  navigator.serviceWorker.register('sw.js').then(()=>{
-    setInterval(()=>{if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:'CHECK_EVENTS',events});},60000);
+// ── HOME ASSISTANT ──
+function openHAModal(){
+  if(haConfig){document.getElementById('ha-url-input').value=haConfig.url||'';document.getElementById('ha-token-input').value=haConfig.token||'';}
+  document.getElementById('ha-modal').classList.add('open');
+}
+function closeHAModal(){document.getElementById('ha-modal').classList.remove('open');}
+function closeHAModalBackdrop(e){if(e.target===document.getElementById('ha-modal'))closeHAModal();}
+function saveHAConfig(){
+  const url=document.getElementById('ha-url-input').value.trim().replace(/\/$/,'');
+  const token=document.getElementById('ha-token-input').value.trim();
+  if(!url||!token){showToast('❌ Please enter URL and token');return;}
+  haConfig={url,token};localStorage.setItem('young_ha_config',JSON.stringify(haConfig));
+  closeHAModal();refreshHA();
+}
+function disconnectHA(){haConfig=null;localStorage.removeItem('young_ha_config');closeHAModal();renderHASetup();
+  document.getElementById('ha-dot').className='ha-dot';document.getElementById('ha-status-text').textContent='Not connected';}
+function renderHASetup(){document.getElementById('ha-content').innerHTML=`<div class="ha-setup">
+  Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br>
+  <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button></div>`;}
+async function refreshHA(){
+  if(!haConfig)return;
+  document.getElementById('ha-status-text').textContent='Connecting...';
+  try{
+    const res=await fetch(`${haConfig.url}/api/states`,{headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'}});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    const all=await res.json();
+    haEntities=all.filter(e=>['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'].includes(e.entity_id.split('.')[0]));
+    document.getElementById('ha-dot').className='ha-dot connected';
+    document.getElementById('ha-status-text').textContent=`Connected · ${haEntities.length} entities`;
+    renderHATiles();
+  }catch(err){
+    document.getElementById('ha-dot').className='ha-dot error';
+    document.getElementById('ha-status-text').textContent='Connection failed';
+    document.getElementById('ha-content').innerHTML=`<div class="ha-setup">Could not connect. Check your URL and token.<br><br>
+      <span style="color:#ff6b6b;font-size:.8rem;">Error: ${err.message}</span><br><br>
+      <button class="btn btn-primary" onclick="openHAModal()">Try Again</button></div>`;
+  }
+}
+function renderHATiles(){
+  const priority=['light','switch','lock','climate','cover'];
+  const sorted=[...haEntities].sort((a,b)=>{
+    const da=priority.indexOf(a.entity_id.split('.')[0]);const db=priority.indexOf(b.entity_id.split('.')[0]);
+    return(da===-1?99:da)-(db===-1?99:db);
   });
+  const shown=sorted.slice(0,12);
+  document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${shown.map(e=>haTile(e)).join('')}</div>
+    ${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length} entities</div>`:''}`;
+}
+function haTile(entity){
+  const domain=entity.entity_id.split('.')[0];const state=entity.state;
+  const name=entity.attributes.friendly_name||entity.entity_id;
+  const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
+  const unavailable=state==='unavailable'||state==='unknown';
+  const canToggle=['light','switch','input_boolean','cover'].includes(domain);
+  return`<div class="ha-tile${isOn?' on':''}${unavailable?' unavailable':''}"
+    ${canToggle&&!unavailable?`onclick="haToggle('${entity.entity_id}','${domain}','${state}')"`:''}
+    title="${entity.entity_id}">
+    <div class="ha-icon">${haIcon(domain,state,entity.attributes)}</div>
+    <div class="ha-name">${name.length>18?name.slice(0,16)+'…':name}</div>
+    <div class="ha-state ${isOn?'on':'off'}">${haStateLabel(domain,state,entity.attributes)}</div></div>`;
+}
+function haIcon(d,s,a){const on=s==='on'||s==='open'||s==='unlocked';
+  if(d==='light')return on?'💡':'🔦';if(d==='switch')return on?'🔵':'⚪';
+  if(d==='lock')return s==='locked'?'🔒':'🔓';
+  if(d==='climate'){if(a.hvac_action==='heating')return'🔥';if(a.hvac_action==='cooling')return'❄️';return'🌡️';}
+  if(d==='cover')return on?'⬆️':'⬇️';if(d==='binary_sensor')return on?'🟢':'⚫';if(d==='sensor')return'📊';return'🏠';}
+function haStateLabel(d,s,a){
+  if(d==='climate'){const t=a.current_temperature;return t?`${t}° → ${a.temperature||'?'}°`:s;}
+  if(d==='sensor')return`${s}${a.unit_of_measurement||''}`;if(d==='lock')return s==='locked'?'Locked':'Unlocked';return s;}
+async function haToggle(entityId,domain,currentState){
+  if(!haConfig)return;
+  const service=domain==='cover'?(currentState==='open'?'close_cover':'open_cover'):(currentState==='on'?'turn_off':'turn_on');
+  try{
+    await fetch(`${haConfig.url}/api/services/${domain}/${service}`,{method:'POST',
+      headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entityId})});
+    setTimeout(refreshHA,800);
+  }catch{showToast('❌ Could not control device');}
 }
 
 // ── TOAST ──
@@ -948,14 +1199,15 @@ function showToast(msg,duration=3000){
 // ── HELPERS ──
 function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
 function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
+function showFirebaseHelp(){
+  alert(`Firebase Setup Steps:\n\n1. Go to firebase.google.com and create a free account\n2. Click "Add project" → name it "young-family"\n3. In the left sidebar → Build → Realtime Database → Create Database → Start in test mode\n4. Go to Project Settings (gear icon) → Your apps → Add app → Web\n5. Copy the firebaseConfig object\n6. Open index.html in a text editor\n7. Replace the REPLACE_WITH_YOUR_* values with your config\n8. Upload the updated index.html to GitHub\n\nThe app will then sync in real time across all devices!`);
+}
+
+// ── SERVICE WORKER ──
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 
 // ── BOOT ──
-buildPicker();
-if(currentUser){
-  document.getElementById('welcome-screen').style.display='none';
-  document.getElementById('app').classList.add('visible');
-  initApp();
-}
+waitForFirebase();
 </script>
 </body>
 </html>
