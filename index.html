@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Young Family Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#06d6a0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Young Fam">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --brooke: #ff7eb3;
+    --audrey: #ffd166;
+    --christian: #06d6a0;
+    --mitchum: #4fc3f7;
+    --bradford: #ff8c42;
+    --text: #e6edf3;
+    --muted: #8b949e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+    background-image: radial-gradient(ellipse at 20% 10%, rgba(255,126,179,0.07) 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, rgba(6,214,160,0.07) 0%, transparent 50%);
+  }
+
+  header {
+    padding: 24px 32px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.2rem;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #ff7eb3, #ffd166, #06d6a0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .date-display { font-size: 0.85rem; color: var(--muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+
+  #weather-widget {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+    cursor: pointer; transition: border-color 0.2s; min-width: 160px;
+  }
+  #weather-widget:hover { border-color: var(--bradford); }
+  #weather-icon { font-size: 1.4rem; }
+  #weather-temp { font-weight: 700; font-size: 1.1rem; }
+
+  .notif-btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 14px; display: flex; align-items: center; gap: 7px;
+    cursor: pointer; transition: all 0.2s; font-family: 'Nunito', sans-serif;
+    font-size: 0.82rem; font-weight: 700; color: var(--text);
+  }
+  .notif-btn:hover { border-color: #ffd166; }
+  .notif-btn.enabled { border-color: #06d6a0; color: #06d6a0; background: rgba(6,214,160,0.1); }
+  .notif-btn.denied { border-color: #ff6b6b; color: #ff6b6b; background: rgba(255,107,107,0.1); }
+
+  .install-btn {
+    background: rgba(255,209,102,0.15); border: 1px solid #ffd166; border-radius: 12px;
+    padding: 10px 14px; font-family: 'Nunito', sans-serif; font-size: 0.82rem;
+    font-weight: 700; color: #ffd166; cursor: pointer; transition: all 0.2s;
+    display: none;
+  }
+  .install-btn:hover { background: rgba(255,209,102,0.25); }
+  .install-btn.visible { display: block; }
+
+  .main { padding: 24px 32px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  .week-strip { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+
+  .day-col {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 8px; cursor: pointer; transition: all 0.2s; min-height: 100px;
+  }
+  .day-col:hover { border-color: #4fc3f7; transform: translateY(-2px); }
+  .day-col.today { border-color: #ffd166; background: #21262d; }
+  .day-col.selected { border-color: #06d6a0; box-shadow: 0 0 0 2px rgba(6,214,160,0.2); }
+
+  .day-name { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 1px; color: var(--muted); text-align: center; }
+  .day-num { font-size: 1.4rem; font-weight: 700; text-align: center; margin: 2px 0 8px; }
+  .day-col.today .day-num { color: #ffd166; }
+  .day-dots { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .day-event-list { margin-top: 4px; display: flex; flex-direction: column; gap: 3px; }
+  .day-event-chip { font-size: 0.6rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .panel-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 1.5px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+
+  .members-panel { grid-column: 1 / 3; }
+  .members-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .member-card { background: var(--surface2); border-radius: 12px; padding: 14px; border-left: 4px solid; transition: transform 0.2s; }
+  .member-card:hover { transform: translateY(-2px); }
+  .member-card.brooke { border-color: var(--brooke); }
+  .member-card.audrey { border-color: var(--audrey); }
+  .member-card.christian { border-color: var(--christian); }
+  .member-card.mitchum { border-color: var(--mitchum); }
+  .member-card.bradford { border-color: var(--bradford); }
+
+  .member-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .member-name { font-weight: 700; font-size: 1rem; }
+  .member-role { font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; }
+  .status-badge { font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .status-home { background: rgba(6,214,160,0.15); color: #06d6a0; }
+  .status-away { background: rgba(255,126,179,0.15); color: #ff7eb3; }
+  .status-work { background: rgba(255,209,102,0.15); color: #ffd166; }
+
+  .member-events { display: flex; flex-direction: column; gap: 4px; max-height: 80px; overflow-y: auto; }
+  .event-item { font-size: 0.75rem; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+  .event-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .event-text { color: var(--muted); }
+  .event-time { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+  .chores-panel { grid-column: 3 / 4; }
+  .chore-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface2); transition: background 0.2s; }
+  .chore-item:hover { background: #2d333b; }
+  .chore-check { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; transition: all 0.2s; }
+  .chore-check.done { background: #06d6a0; border-color: #06d6a0; color: #0d1117; }
+  .chore-label { font-size: 0.85rem; flex: 1; }
+  .chore-label.done { text-decoration: line-through; color: var(--muted); }
+  .chore-assign { font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .add-chore-row { display: flex; gap: 8px; }
+  .add-chore-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.82rem; outline: none; }
+  .add-chore-row input:focus { border-color: #06d6a0; }
+
+  .btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 700; padding: 7px 14px; cursor: pointer; transition: all 0.2s; }
+  .btn:hover { background: #2d333b; border-color: #06d6a0; }
+  .btn-primary { background: rgba(6,214,160,0.15); border-color: #06d6a0; color: #06d6a0; }
+  .btn-primary:hover { background: rgba(6,214,160,0.25); }
+
+  .selected-day-panel { grid-column: 1 / 3; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .selected-events-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
+  .sel-event { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface2); border-radius: 10px; border-left: 3px solid; }
+  .sel-event-time { font-size: 0.78rem; font-weight: 700; color: var(--muted); white-space: nowrap; min-width: 60px; }
+  .sel-event-title { font-size: 0.9rem; font-weight: 600; }
+  .sel-event-person { font-size: 0.72rem; }
+  .delete-btn { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px; transition: color 0.2s; }
+  .delete-btn:hover { color: #ff6b6b; }
+  .empty-state { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 20px; }
+
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-backdrop.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; width: 420px; max-width: 95vw; display: flex; flex-direction: column; gap: 16px; transform: translateY(20px); transition: transform 0.2s; }
+  .modal-backdrop.open .modal { transform: translateY(0); }
+  .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 2px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group select { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus, .form-group select:focus { border-color: #06d6a0; }
+  .form-group select option { background: var(--surface2); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; font-size: 0.85rem; font-weight: 600; transition: transform 0.3s; z-index: 200; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr 1fr; padding: 16px; }
+    .members-panel, .chores-panel, .selected-day-panel { grid-column: 1 / -1; }
+    .day-event-chip { display: none; }
+  }
+  @media (max-width: 600px) {
+    .main { grid-template-columns: 1fr; padding: 12px; }
+    .members-grid { grid-template-columns: 1fr; }
+    .week-strip { gap: 3px; }
+    .day-col { padding: 8px 4px; }
+    .day-name { font-size: 0.7rem; }
+    .day-num { font-size: 1rem; }
+    header { padding: 16px; }
+    .logo { font-size: 1.6rem; }
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Young Family</div>
+  <div class="header-right">
+    <div class="date-display" id="date-display"></div>
+    <div id="weather-widget" onclick="refreshWeather()" title="Click to use your location">
+      <span id="weather-icon">🌤️</span>
+      <div>
+        <div style="display:flex;align-items:baseline;gap:6px;">
+          <span id="weather-temp">--°F</span>
+          <span id="weather-desc" style="font-size:0.75rem;color:var(--muted)">Loading...</span>
+        </div>
+        <div id="weather-loc" style="font-size:0.7rem;color:var(--muted)">Mountain Home, AR 📍</div>
+      </div>
+    </div>
+    <button class="notif-btn" id="notif-btn" onclick="requestNotifications()">🔔 Enable Alerts</button>
+    <button class="install-btn" id="install-btn" onclick="installApp()">📲 Install App</button>
+    <button class="btn btn-primary" onclick="openModal()">+ Add Event</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="week-strip" id="week-strip"></div>
+
+  <div class="panel selected-day-panel">
+    <div class="panel-title">
+      <span id="selected-day-title">Today's Schedule</span>
+      <span style="font-size:0.75rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Click a day above</span>
+    </div>
+    <div class="selected-events-list" id="selected-events-list"></div>
+  </div>
+
+  <div class="panel chores-panel">
+    <div class="panel-title">
+      <span>🏠 Chores</span>
+      <span id="chores-done-count" style="font-size:0.8rem;font-family:'Nunito',sans-serif;font-weight:600;color:var(--muted)"></span>
+    </div>
+    <div id="chores-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    <div class="add-chore-row">
+      <input type="text" id="chore-input" placeholder="Add a chore..." onkeydown="if(event.key==='Enter')addChore()">
+      <select id="chore-assign" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:0.82rem;outline:none;cursor:pointer;">
+        <option value="">Anyone</option>
+        <option value="Bradford">Bradford</option>
+        <option value="Brooke">Brooke</option>
+        <option value="Audrey">Audrey</option>
+        <option value="Christian">Christian</option>
+        <option value="Mitchum">Mitchum</option>
+      </select>
+      <button class="btn btn-primary" onclick="addChore()">Add</button>
+    </div>
+  </div>
+
+  <div class="panel members-panel">
+    <div class="panel-title"><span>👨‍👩‍👧‍👦 Family Status</span></div>
+    <div class="members-grid" id="members-grid"></div>
+  </div>
+</div>
+
+<!-- Add Event Modal -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModalBackdrop(event)">
+  <div class="modal">
+    <h2>Add Event</h2>
+    <div class="form-group">
+      <label>Person</label>
+      <select id="evt-person">
+        <option value="Bradford">Bradford</option>
+        <option value="Brooke">Brooke</option>
+        <option value="Audrey">Audrey</option>
+        <option value="Christian">Christian</option>
+        <option value="Mitchum">Mitchum</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Event Title</label>
+      <input type="text" id="evt-title" placeholder="e.g. Work at Creative Academy">
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="evt-date">
+    </div>
+    <div class="form-group">
+      <label>Time (optional)</label>
+      <input type="time" id="evt-time">
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="evt-type">
+        <option value="work">Work</option>
+        <option value="school">School / Class</option>
+        <option value="activity">Activity / Band / Theater</option>
+        <option value="travel">Travel</option>
+        <option value="away">Away from Home</option>
+        <option value="personal">Personal</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEvent()">Save Event</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MEMBERS = [
+  { key:'Bradford',  role:'Bomb Squad / Dad',  cls:'bradford' },
+  { key:'Brooke',    role:'Creative Academy',   cls:'brooke'   },
+  { key:'Audrey',    role:'Hendrix College',    cls:'audrey'   },
+  { key:'Christian', role:'Work & School',      cls:'christian'},
+  { key:'Mitchum',   role:'Band & School',      cls:'mitchum'  },
+];
+const MEMBER_HEX = {
+  Bradford:'#ff8c42', Brooke:'#ff7eb3', Audrey:'#ffd166', Christian:'#06d6a0', Mitchum:'#4fc3f7'
+};
+
+const today = new Date();
+function fmtDate(d) { return d.toISOString().split('T')[0]; }
+function addDays(d,n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+
+let events = JSON.parse(localStorage.getItem('young_events')||'null') || [
+  {id:1, person:'Brooke',    title:'Work — Creative Academy', date:fmtDate(today),            time:'08:00', type:'work'},
+  {id:2, person:'Bradford',  title:'Bomb Squad Training',      date:fmtDate(today),            time:'09:00', type:'work'},
+  {id:3, person:'Mitchum',   title:'Band Practice 🎺',         date:fmtDate(today),            time:'15:30', type:'activity'},
+  {id:4, person:'Audrey',    title:'Hendrix — Classes',        date:fmtDate(addDays(today,1)), time:'09:00', type:'school'},
+  {id:5, person:'Christian', title:'Work Shift',               date:fmtDate(addDays(today,1)), time:'14:00', type:'work'},
+  {id:6, person:'Brooke',    title:'Work — Creative Academy',  date:fmtDate(addDays(today,2)), time:'08:00', type:'work'},
+  {id:7, person:'Mitchum',   title:'Band Concert 🎺',          date:fmtDate(addDays(today,3)), time:'19:00', type:'activity'},
+  {id:8, person:'Audrey',    title:'Theater Rehearsal 🎭',     date:fmtDate(addDays(today,2)), time:'18:00', type:'activity'},
+  {id:9, person:'Bradford',  title:'Bomb Squad Call',          date:fmtDate(addDays(today,4)), time:'07:00', type:'work'},
+  {id:10,person:'Audrey',    title:'Summer Travel ✈️',         date:fmtDate(addDays(today,5)), time:'',      type:'travel'},
+];
+
+let chores = JSON.parse(localStorage.getItem('young_chores')||'null') || [
+  {id:1, label:'Feed the dogs',      done:false, assign:''},
+  {id:2, label:'Unload dishwasher',  done:false, assign:''},
+  {id:3, label:'Take out trash',     done:false, assign:'Christian'},
+  {id:4, label:'Vacuum living room', done:false, assign:'Mitchum'},
+  {id:5, label:'Wipe counters',      done:false, assign:''},
+];
+
+let selectedDate = fmtDate(today);
+
+function saveData() {
+  localStorage.setItem('young_events', JSON.stringify(events));
+  localStorage.setItem('young_chores', JSON.stringify(chores));
+  // Tell service worker to check events
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type:'CHECK_EVENTS', events });
+  }
+}
+
+// --- TOAST ---
+function showToast(msg, duration=3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// --- DATE ---
+function updateDateDisplay() {
+  document.getElementById('date-display').textContent = new Date().toLocaleDateString('en-US',
+    {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+}
+
+// --- WEEK ---
+function renderWeek() {
+  const strip = document.getElementById('week-strip');
+  strip.innerHTML = '';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const start = addDays(today,-2);
+  for (let i=0;i<7;i++) {
+    const d = addDays(start,i);
+    const ds = fmtDate(d);
+    const dayEvts = events.filter(e=>e.date===ds);
+    const col = document.createElement('div');
+    col.className='day-col'+(ds===fmtDate(today)?' today':'')+(ds===selectedDate?' selected':'');
+    col.onclick=()=>{selectedDate=ds;renderWeek();renderSelectedDay();renderMembers();};
+    col.innerHTML=`
+      <div class="day-name">${dayNames[d.getDay()]}</div>
+      <div class="day-num">${d.getDate()}</div>
+      <div class="day-dots">
+        ${[...new Set(dayEvts.map(e=>e.person))].map(p=>`<div class="dot" style="background:${MEMBER_HEX[p]}" title="${p}"></div>`).join('')}
+      </div>
+      <div class="day-event-list">
+        ${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${MEMBER_HEX[e.person]}22;color:${MEMBER_HEX[e.person]}">${e.title}</div>`).join('')}
+      </div>`;
+    strip.appendChild(col);
+  }
+}
+
+// --- SELECTED DAY ---
+function renderSelectedDay() {
+  const d = new Date(selectedDate+'T12:00:00');
+  const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}`;
+  const dayEvts = events.filter(e=>e.date===selectedDate).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+  const list = document.getElementById('selected-events-list');
+  if (!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
+  list.innerHTML=dayEvts.map(e=>`
+    <div class="sel-event" style="border-color:${MEMBER_HEX[e.person]}">
+      <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
+      <div>
+        <div class="sel-event-title">${e.title}</div>
+        <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]}">${e.person} · ${capitalize(e.type)}</div>
+      </div>
+      <button class="delete-btn" onclick="deleteEvent(${e.id})">✕</button>
+    </div>`).join('');
+}
+
+function deleteEvent(id){events=events.filter(e=>e.id!==id);saveData();renderWeek();renderSelectedDay();renderMembers();}
+
+// --- MEMBERS ---
+function renderMembers(){
+  const grid=document.getElementById('members-grid');
+  grid.innerHTML='';
+  MEMBERS.forEach((m,i)=>{
+    const dayEvts=events.filter(e=>e.person===m.key&&e.date===selectedDate);
+    const isWork=dayEvts.some(e=>e.type==='work');
+    const isAway=dayEvts.some(e=>e.type==='travel'||e.type==='away');
+    const statusLabel=isAway?'✈️ Away':isWork?'💼 At Work':'🏠 Home';
+    const statusCls=isAway?'status-away':isWork?'status-work':'status-home';
+    const card=document.createElement('div');
+    card.className=`member-card ${m.cls}`;
+    if(i===4) card.style.gridColumn='1 / -1';
+    card.innerHTML=`
+      <div class="member-header">
+        <div>
+          <div class="member-name">${m.key}</div>
+          <div class="member-role">${m.role}</div>
+        </div>
+        <div class="status-badge ${statusCls}">${statusLabel}</div>
+      </div>
+      <div class="member-events">
+        ${!dayEvts.length
+          ?'<div style="font-size:0.75rem;color:var(--muted)">Nothing scheduled</div>'
+          :dayEvts.map(e=>`<div class="event-item"><div class="event-dot" style="background:${MEMBER_HEX[m.key]}"></div><span class="event-time">${e.time?formatTime(e.time):'All day'}</span><span class="event-text">${e.title}</span></div>`).join('')}
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// --- CHORES ---
+function renderChores(){
+  const list=document.getElementById('chores-list');
+  list.innerHTML='';
+  const done=chores.filter(c=>c.done).length;
+  document.getElementById('chores-done-count').textContent=`${done}/${chores.length} done`;
+  chores.forEach(c=>{
+    const ac=c.assign?MEMBER_HEX[c.assign]:'var(--muted)';
+    const item=document.createElement('div');
+    item.className='chore-item';
+    item.innerHTML=`
+      <div class="chore-check ${c.done?'done':''}" onclick="toggleChore(${c.id})">${c.done?'✓':''}</div>
+      <div class="chore-label ${c.done?'done':''}">${c.label}</div>
+      ${c.assign?`<span class="chore-assign" style="background:${ac}22;color:${ac}">${c.assign}</span>`:''}
+      <button class="delete-btn" onclick="deleteChore(${c.id})">✕</button>`;
+    list.appendChild(item);
+  });
+}
+
+function toggleChore(id){const c=chores.find(c=>c.id===id);if(c)c.done=!c.done;saveData();renderChores();}
+function deleteChore(id){chores=chores.filter(c=>c.id!==id);saveData();renderChores();}
+function addChore(){
+  const inp=document.getElementById('chore-input');
+  const assign=document.getElementById('chore-assign').value;
+  const label=inp.value.trim();
+  if(!label)return;
+  chores.push({id:Date.now(),label,done:false,assign});
+  inp.value='';saveData();renderChores();
+}
+
+// --- MODAL ---
+function openModal(){document.getElementById('modal-backdrop').classList.add('open');document.getElementById('evt-date').value=selectedDate;}
+function closeModal(){document.getElementById('modal-backdrop').classList.remove('open');}
+function closeModalBackdrop(e){if(e.target===document.getElementById('modal-backdrop'))closeModal();}
+function saveEvent(){
+  const person=document.getElementById('evt-person').value;
+  const title=document.getElementById('evt-title').value.trim();
+  const date=document.getElementById('evt-date').value;
+  const time=document.getElementById('evt-time').value;
+  const type=document.getElementById('evt-type').value;
+  if(!title||!date){alert('Please fill in a title and date.');return;}
+  events.push({id:Date.now(),person,title,date,time,type});
+  saveData();closeModal();renderWeek();renderSelectedDay();renderMembers();
+  showToast(`✅ Event added for ${person}`);
+  document.getElementById('evt-title').value='';
+  document.getElementById('evt-time').value='';
+}
+
+// --- WEATHER ---
+async function refreshWeather(){
+  document.getElementById('weather-desc').textContent='Locating...';
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      pos=>fetchWeather(pos.coords.latitude,pos.coords.longitude,true),
+      ()=>fetchWeather(36.3348,-92.3849,false)
+    );
+  } else {fetchWeather(36.3348,-92.3849,false);}
+}
+async function fetchWeather(lat,lon,geo){
+  try{
+    const res=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
+    const data=await res.json();
+    const cw=data.current_weather;
+    document.getElementById('weather-icon').textContent=wmoIcon(cw.weathercode);
+    document.getElementById('weather-temp').textContent=Math.round(cw.temperature)+'°F';
+    document.getElementById('weather-desc').textContent=wmoDesc(cw.weathercode);
+    document.getElementById('weather-loc').textContent=geo?'Your Location 📍':'Mountain Home, AR 📍';
+  }catch(e){document.getElementById('weather-desc').textContent='Unavailable';}
+}
+function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=49)return'🌫️';if(c<=59)return'🌦️';if(c<=69)return'🌧️';if(c<=79)return'🌨️';if(c<=82)return'🌧️';if(c<=99)return'⛈️';return'🌤️';}
+function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
+
+// --- NOTIFICATIONS ---
+async function requestNotifications(){
+  if(!('Notification' in window)){showToast('❌ Notifications not supported in this browser');return;}
+  const perm = await Notification.requestPermission();
+  updateNotifBtn(perm);
+  if(perm==='granted'){
+    showToast('🔔 Notifications enabled! You\'ll get alerts 15 min before events.');
+    new Notification('Young Family Dashboard',{body:'Notifications are on! You\'re all set. 🏠'});
+  } else {
+    showToast('Notifications blocked. Enable them in your browser settings.');
+  }
+}
+function updateNotifBtn(perm){
+  const btn=document.getElementById('notif-btn');
+  if(perm==='granted'){btn.textContent='🔔 Alerts On';btn.className='notif-btn enabled';}
+  else if(perm==='denied'){btn.textContent='🔕 Blocked';btn.className='notif-btn denied';}
+  else{btn.textContent='🔔 Enable Alerts';btn.className='notif-btn';}
+}
+
+// --- PWA INSTALL ---
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-btn').classList.add('visible');
+});
+function installApp(){
+  if(!deferredPrompt)return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(()=>{deferredPrompt=null;document.getElementById('install-btn').classList.remove('visible');});
+}
+window.addEventListener('appinstalled',()=>{showToast('📲 App installed! Find it on your home screen.');});
+
+// --- SERVICE WORKER ---
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    console.log('SW registered:', reg.scope);
+    // Ping SW with events every minute for notification checks
+    setInterval(()=>{
+      if(navigator.serviceWorker.controller){
+        navigator.serviceWorker.controller.postMessage({type:'CHECK_EVENTS',events});
+      }
+    },60000);
+  });
+  if(Notification.permission) updateNotifBtn(Notification.permission);
+}
+
+function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
+function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
+
+// INIT
+updateDateDisplay();
+renderWeek();
+renderSelectedDay();
+renderMembers();
+renderChores();
+fetchWeather(36.3348,-92.3849,false);
+</script>
+</body>
+</html>
