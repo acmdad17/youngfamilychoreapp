@@ -481,31 +481,9 @@ function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 
 let currentUser=JSON.parse(sessionStorage.getItem('young_user')||'null');
 
-let events=JSON.parse(localStorage.getItem('young_events')||'null')||[
-  {id:1,person:'Brooke',   title:'Work — Creative Academy',date:fmtDate(today),           time:'08:00',type:'work'},
-  {id:2,person:'Bradford', title:'Bomb Squad Training',    date:fmtDate(today),           time:'09:00',type:'work'},
-  {id:3,person:'Mitchum',  title:'Band Practice 🎺',       date:fmtDate(today),           time:'15:30',type:'activity'},
-  {id:4,person:'Audrey',   title:'Hendrix — Classes',      date:fmtDate(addDays(today,1)),time:'09:00',type:'school'},
-  {id:5,person:'Christian',title:'Work Shift',             date:fmtDate(addDays(today,1)),time:'14:00',type:'work'},
-  {id:6,person:'Brooke',   title:'Work — Creative Academy',date:fmtDate(addDays(today,2)),time:'08:00',type:'work'},
-  {id:7,person:'Mitchum',  title:'Band Concert 🎺',        date:fmtDate(addDays(today,3)),time:'19:00',type:'activity'},
-  {id:8,person:'Audrey',   title:'Theater Rehearsal 🎭',   date:fmtDate(addDays(today,2)),time:'18:00',type:'activity'},
-  {id:9,person:'Bradford', title:'Bomb Squad Call',        date:fmtDate(addDays(today,4)),time:'07:00',type:'work'},
-  {id:10,person:'Audrey',  title:'Summer Travel ✈️',       date:fmtDate(addDays(today,5)),time:'',     type:'travel'},
-];
-let chores=JSON.parse(localStorage.getItem('young_chores')||'null')||[
-  {id:1,label:'Feed the dogs',     done:false,assign:''},
-  {id:2,label:'Unload dishwasher', done:false,assign:''},
-  {id:3,label:'Take out trash',    done:false,assign:'Christian'},
-  {id:4,label:'Vacuum living room',done:false,assign:'Mitchum'},
-  {id:5,label:'Wipe counters',     done:false,assign:''},
-];
-let groceries=JSON.parse(localStorage.getItem('young_groceries')||'null')||[
-  {id:1,label:'Milk',  got:false,cat:'Dairy'},
-  {id:2,label:'Eggs',  got:false,cat:'Dairy'},
-  {id:3,label:'Dog food',got:false,cat:'Pets'},
-  {id:4,label:'Bread', got:false,cat:'Bakery'},
-];
+let events=JSON.parse(localStorage.getItem('young_events')||'null')||[];
+let chores=JSON.parse(localStorage.getItem('young_chores')||'null')||[];
+let groceries=JSON.parse(localStorage.getItem('young_groceries')||'null')||[];
 
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
