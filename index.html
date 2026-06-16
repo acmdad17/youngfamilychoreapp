@@ -615,8 +615,8 @@ function onFirebaseReady(){
 
 function subscribeAll(){
   const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef}=window._fb;
-  let loaded=0;
-  const check=()=>{if(++loaded>=4){
+  let loaded=0;let booted=false;
+  const check=()=>{if(++loaded>=4&&!booted){booted=true;
     document.getElementById('splash').classList.add('hidden');
     setSyncStatus('live');
     showWelcome();
@@ -666,6 +666,12 @@ async function dbPush(path,value){
     if(path.startsWith('events'))events[key]=value;
     else if(path.startsWith('chores'))chores[key]=value;
     else if(path.startsWith('groceries'))groceries[key]=value;
+    else if(path.startsWith('choreLog')){
+      const parts=path.split('/');const date=parts[1];const choreId=parts[2];
+      if(!choreLog[date])choreLog[date]={};
+      if(!choreLog[date][choreId])choreLog[date][choreId]={};
+      choreLog[date][choreId][key]=value;
+    }
     saveLocal();return key;
   }
 }
@@ -1200,14 +1206,4 @@ function showToast(msg,duration=3000){
 function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
 function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
 function showFirebaseHelp(){
-  alert(`Firebase Setup Steps:\n\n1. Go to firebase.google.com and create a free account\n2. Click "Add project" → name it "young-family"\n3. In the left sidebar → Build → Realtime Database → Create Database → Start in test mode\n4. Go to Project Settings (gear icon) → Your apps → Add app → Web\n5. Copy the firebaseConfig object\n6. Open index.html in a text editor\n7. Replace the REPLACE_WITH_YOUR_* values with your config\n8. Upload the updated index.html to GitHub\n\nThe app will then sync in real time across all devices!`);
-}
-
-// ── SERVICE WORKER ──
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
-
-// ── BOOT ──
-waitForFirebase();
-</script>
-</body>
-</html>
+  alert(`Firebase Setup Steps:\n\n1. Go to firebase.google.com and create a free account\n2. Click "Add project" → name it "young-family"\n3. In the left sidebar → Build → Realtime Database → Create Database → Start in test mode\n4. Go to Project Settings (gear icon) → Your apps → Add app → Web\n5. Copy the firebaseConfig object\n6. Open index.html in a text editor\n7. Replace the REPLACE_WITH_YO
