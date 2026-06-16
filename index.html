@@ -57,8 +57,10 @@
 
   /* SPLASH */
   #splash{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    background:var(--bg);gap:16px;transition:opacity .4s;}
+    background:var(--bg);gap:16px;transition:opacity .4s;
+    animation:splash-auto-hide 0.5s ease 4s forwards;}
   #splash.hidden{opacity:0;pointer-events:none;}
+  @keyframes splash-auto-hide{to{opacity:0;pointer-events:none;}}
   .splash-logo{font-family:'Bebas Neue',sans-serif;font-size:3rem;letter-spacing:4px;
     background:linear-gradient(135deg,#ff7eb3,#ffd166,#06d6a0,#4fc3f7);
     -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
@@ -1215,6 +1217,4 @@ function renderMembers(){
     if(isMe)card.style.outline=`2px solid ${m.color}44`;
     card.innerHTML=`<div class="member-header"><div>
       <div class="member-name">${m.emoji} ${m.key}${isMe?'<span class="me-tag">you</span>':''}</div>
-      <div class="member-role">${m.role}</div></div>
-      <div class="status-badge ${statusCls}">${statusLabel}</div></div>
-      <div class="member-ev
+      <div class="member-role">$
