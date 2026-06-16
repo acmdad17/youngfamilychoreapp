@@ -1217,4 +1217,386 @@ function renderMembers(){
     if(isMe)card.style.outline=`2px solid ${m.color}44`;
     card.innerHTML=`<div class="member-header"><div>
       <div class="member-name">${m.emoji} ${m.key}${isMe?'<span class="me-tag">you</span>':''}</div>
-      <div class="member-role">$
+      <div class="member-role">${m.role}</div></div>
+      <div class="status-badge ${statusCls}">${statusLabel}</div></div>
+      <div class="member-events">${!dayEvts.length
+        ?'<div style="font-size:.75rem;color:var(--muted)">Nothing scheduled</div>'
+        :dayEvts.map(e=>`<div class="event-item"><div class="event-dot" style="background:${m.color}"></div><span class="event-time">${e.time?formatTime(e.time):'All day'}</span><span class="event-text">${e.title}</span></div>`).join('')
+      }</div>
+      <div class="member-pts">⭐ ${pts} pts</div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ── CHORES ──
+function renderChores(){
+  const list=document.getElementById('chores-list');if(!list)return;list.innerHTML='';
+  const choreArr=Object.entries(chores);
+  if(!choreArr.length){list.innerHTML='<div class="empty-state">No chores yet — add some above!</div>';return;}
+  choreArr.forEach(([id,chore])=>{
+    const todayLog=choreLog[todayStr]?.[id]||{};
+    const counts={};
+    Object.values(todayLog).forEach(entry=>{counts[entry.person]=(counts[entry.person]||0)+1;});
+    const totalDone=Object.values(counts).reduce((a,b)=>a+b,0);
+    const freq=parseInt(chore.freq)||0;
+    const complete=freq>0&&totalDone>=freq;
+    const assignedTo=chore.assignedTo||null;
+    const isAssigned=!assignedTo||!currentUser||currentUser.name==='Guest'||assignedTo.includes(currentUser.name);
+    const item=document.createElement('div');item.className='chore-item';
+    const counterChips=Object.entries(counts).map(([person,count])=>{
+      const color=MEMBER_HEX[person]||'#888';
+      return`<div class="counter-chip" style="background:${color}22;color:${color}">${person} x${count}
+        ${currentUser&&currentUser.name===person?`<span class="counter-x" onclick="undoChore('${id}','${person}')">undo</span>`:''}
+      </div>`;
+    }).join('');
+    const nowTime=new Date().toTimeString().slice(0,5);
+    const isOverdue=!complete&&chore.dueBy&&nowTime>chore.dueBy;
+    const pts=chore.points||1;
+    const assignedStr=assignedTo?`Assigned: ${assignedTo.join(', ')}`:'Anyone';
+    item.innerHTML=`<div class="chore-top">
+      <div class="chore-icon">${chore.icon||'✅'}</div>
+      <div class="chore-info">
+        <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">
+          ${chore.name}<span class="chore-points-badge">&#11088;${pts}</span>
+          ${chore.time?`<span style="font-size:.65rem;color:var(--muted);margin-left:4px">&#9200; ${formatTime(chore.time)}</span>`:''}
+        </div>
+        <div class="chore-freq">${freq>0?`${totalDone}/${freq} today`:'Done '+totalDone+' time'+(totalDone!==1?'s':'')+' today'}</div>
+        <div class="chore-assigned-badge">${assignedStr}</div>
+        ${chore.dueBy?`<span class="chore-deadline ${isOverdue?'overdue':'ok'}">${isOverdue?'&#9873; Overdue':'&#9873; Due'} ${formatTime(chore.dueBy)}</span>`:''}
+      </div>
+      <div class="chore-actions">
+        ${isAssigned&&(!complete||freq===0)?`<button class="chore-add-btn" onclick="logChore('${id}')">I did it ✓</button>`
+          :complete?'<span style="color:#06d6a0;font-size:.8rem;font-weight:700;">✓ Done!</span>'
+          :'<span style="font-size:.75rem;color:var(--muted);">Not assigned</span>'}
+        <button class="delete-btn" onclick="deleteChore('${id}')">✕</button>
+      </div></div>
+      ${counterChips?`<div class="chore-counters">${counterChips}</div>`:''}
+      <button class="chore-history-btn" onclick="showChoreHistory('${id}','${chore.name}')">View history →</button>`;
+    list.appendChild(item);
+  });
+}
+
+async function logChore(choreId){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Please select yourself first');return;}
+  await dbPush(`choreLog/${todayStr}/${choreId}`,{person:currentUser.name,time:new Date().toISOString()});
+  const pts=chores[choreId]?.points||1;
+  const cur=points[currentUser.name]?.total||0;
+  await dbSet(`points/${currentUser.name}/total`,cur+pts);
+  showToast(`✅ Logged for ${currentUser.name}! +${pts} pts`);
+}
+async function undoChore(choreId,person){
+  const todayLog=choreLog[todayStr]?.[choreId]||{};
+  const entries=Object.entries(todayLog).filter(([,v])=>v.person===person);
+  if(!entries.length)return;
+  await dbRemove(`choreLog/${todayStr}/${choreId}/${entries[entries.length-1][0]}`);
+  const pts=chores[choreId]?.points||1;
+  const cur=points[person]?.total||0;
+  await dbSet(`points/${person}/total`,Math.max(0,cur-pts));
+  showToast(`Undone for ${person} (-${pts} pts)`);
+}
+async function deleteChore(id){
+  if(!confirm('Delete this chore?'))return;
+  await dbRemove(`chores/${id}`);await dbRemove(`choreLog/${todayStr}/${id}`);
+}
+function openAddChoreModal(){
+  document.getElementById('new-chore-name').value='';
+  document.getElementById('new-chore-icon').value='';
+  document.getElementById('new-chore-freq').value='1';
+  document.getElementById('new-chore-time').value='';
+  document.getElementById('new-chore-due').value='';
+  document.getElementById('new-chore-points').value='1';
+  const grid=document.getElementById('chore-assign-grid');
+  grid.innerHTML=MEMBERS.map(m=>`<label class="assign-chip"><input type="checkbox" name="chore-assign" value="${m.key}"><span>${m.emoji} ${m.key}</span></label>`).join('');
+  document.getElementById('add-chore-modal').classList.add('open');
+}
+function closeAddChoreModal(){document.getElementById('add-chore-modal').classList.remove('open');}
+function closeAddChoreBackdrop(e){if(e.target===document.getElementById('add-chore-modal'))closeAddChoreModal();}
+async function saveNewChore(){
+  const name=document.getElementById('new-chore-name').value.trim();
+  const icon=document.getElementById('new-chore-icon').value.trim()||'✅';
+  const freq=document.getElementById('new-chore-freq').value;
+  const choreTime=document.getElementById('new-chore-time').value;
+  const choreDue=document.getElementById('new-chore-due').value;
+  const pts=parseInt(document.getElementById('new-chore-points').value)||1;
+  if(!name){showToast('Please enter a chore name');return;}
+  const checked=[...document.querySelectorAll('input[name="chore-assign"]:checked')].map(c=>c.value);
+  await dbPush('chores',{name,icon,freq:parseInt(freq),time:choreTime||null,dueBy:choreDue||null,points:pts,assignedTo:checked.length?checked:null,created:Date.now()});
+  closeAddChoreModal();showToast(`✅ "${name}" added!`);
+}
+function showChoreHistory(choreId,choreName){
+  document.getElementById('history-title').textContent=`${choreName} — History`;
+  const content=document.getElementById('history-content');content.innerHTML='';
+  const days=Object.keys(choreLog).sort().reverse().slice(0,14);
+  if(!days.length){content.innerHTML='<div class="empty-state">No history yet.</div>';}
+  else{
+    days.forEach(date=>{
+      const counts={};
+      Object.values(choreLog[date]?.[choreId]||{}).forEach(e=>{counts[e.person]=(counts[e.person]||0)+1;});
+      if(!Object.keys(counts).length)return;
+      const label=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      content.innerHTML+=`<div class="history-entry"><div class="history-date">${label}</div><div class="history-chips">${
+        Object.entries(counts).map(([p,c])=>`<div class="history-chip" style="background:${MEMBER_HEX[p]||'#888'}22;color:${MEMBER_HEX[p]||'#888'}">${p} x${c}</div>`).join('')
+      }</div></div>`;
+    });
+    if(!content.innerHTML)content.innerHTML='<div class="empty-state">No history yet.</div>';
+  }
+  document.getElementById('history-modal').classList.add('open');
+}
+function closeHistoryModal(){document.getElementById('history-modal').classList.remove('open');}
+function closeHistoryBackdrop(e){if(e.target===document.getElementById('history-modal'))closeHistoryModal();}
+
+// ── MEALS ──
+function renderMeals(){
+  const list=document.getElementById('meals-list');if(!list)return;list.innerHTML='';
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  for(let i=0;i<7;i++){
+    const d=addDays(today,i-1);const ds=fmtDate(d);
+    const dinner=meals[ds]?.dinner||'';
+    const row=document.createElement('div');row.className='meal-row';
+    row.innerHTML=`<span class="meal-day${ds===todayStr?' today':''}">${dayNames[d.getDay()]}</span>
+      <input class="meal-input" placeholder="dinner..." value="${escHtml(dinner)}"
+        onblur="saveMeal('${ds}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+    list.appendChild(row);
+  }
+}
+async function saveMeal(dateStr,value){await dbSet(`meals/${dateStr}/dinner`,value.trim());}
+function escHtml(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'):''}
+
+// ── POINTS / REWARDS / ALLOWANCE ──
+function setPointsTab(tab,btn){
+  currentPointsTab=tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderPointsTab();
+}
+function renderPointsTab(){
+  const el=document.getElementById('points-tab-content');if(!el)return;
+  if(currentPointsTab==='points'){
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${MEMBERS.map(m=>`
+      <div class="pts-person"><span class="pts-name">${m.emoji} ${m.key}</span>
+      <span class="pts-val">${points[m.key]?.total||0}</span></div>`).join('')}</div>`;
+  }else if(currentPointsTab==='rewards'){
+    const arr=Object.entries(rewards);
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${arr.length?arr.map(([id,r])=>`
+      <div class="reward-item"><span class="reward-icon">${r.icon||'🏆'}</span>
+        <span class="reward-name">${r.name}</span><span class="reward-cost">&#11088;${r.cost}</span>
+        <button class="chore-add-btn" style="font-size:.72rem;padding:3px 8px;" onclick="redeemReward('${id}')">Redeem</button>
+        <button class="reward-del" onclick="deleteReward('${id}')">✕</button></div>`).join('')
+      :'<div class="empty-state">No rewards yet.</div>'}</div>
+      <button class="btn btn-yellow" style="font-size:.75rem;padding:5px 10px;margin-top:4px;" onclick="openRewardModal()">+ Add Reward</button>`;
+  }else{
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${MEMBERS.map(m=>{
+      const bal=getAllowance(m.key);
+      return`<div class="allowance-row"><span class="allowance-name">${m.emoji} ${m.key}</span>
+        <span class="allowance-val">$${bal.toFixed(2)}</span>
+        <div class="allowance-btns">
+          <button class="allow-btn" onclick="adjustAllowance('${m.key}',5)">+$5</button>
+          <button class="allow-btn" onclick="adjustAllowance('${m.key}',-5)">-$5</button>
+          <button class="allow-btn" onclick="adjustAllowanceCustom('${m.key}')">±</button>
+        </div></div>`;}).join('')}</div>`;
+  }
+}
+function openRewardModal(){document.getElementById('rwd-icon').value='🏆';document.getElementById('rwd-name').value='';document.getElementById('rwd-cost').value='10';document.getElementById('reward-modal').classList.add('open');}
+function closeRewardModal(){document.getElementById('reward-modal').classList.remove('open');}
+async function saveReward(){
+  const icon=document.getElementById('rwd-icon').value.trim()||'🏆';
+  const name=document.getElementById('rwd-name').value.trim();
+  const cost=parseInt(document.getElementById('rwd-cost').value)||10;
+  if(!name){showToast('Enter a reward name');return;}
+  await dbPush('rewards',{icon,name,cost,created:Date.now()});closeRewardModal();showToast('Reward added!');
+}
+async function deleteReward(id){await dbRemove(`rewards/${id}`);}
+async function redeemReward(id){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
+  const r=rewards[id];if(!r)return;
+  const cur=points[currentUser.name]?.total||0;
+  if(cur<r.cost){showToast(`Need ${r.cost} pts — you have ${cur}`);return;}
+  await dbSet(`points/${currentUser.name}/total`,cur-r.cost);showToast(`Redeemed "${r.name}"!`);
+}
+function adjustAllowance(person,delta){setAllowance(person,Math.max(0,getAllowance(person)+delta));renderPointsTab();}
+function adjustAllowanceCustom(person){
+  const amt=parseFloat(prompt(`Amount to add/subtract for ${person}:`));
+  if(!isNaN(amt)){setAllowance(person,Math.max(0,getAllowance(person)+amt));renderPointsTab();}
+}
+
+// ── GROCERIES ──
+function renderGroceries(){
+  const gArr=Object.entries(groceries);
+  const cats=['All',...new Set(gArr.map(([,g])=>g.cat))];
+  document.getElementById('grocery-categories').innerHTML=cats.map(c=>`<div class="cat-chip${c===selectedGroceryCat?' active':''}" onclick="setGroceryCat('${c}')">${c}</div>`).join('');
+  const filtered=selectedGroceryCat==='All'?gArr:gArr.filter(([,g])=>g.cat===selectedGroceryCat);
+  const list=document.getElementById('grocery-list');list.innerHTML='';
+  document.getElementById('grocery-count').textContent=`${gArr.filter(([,g])=>!g.got).length} left`;
+  filtered.forEach(([id,g])=>{
+    const item=document.createElement('div');item.className='grocery-item';
+    item.innerHTML=`<div class="grocery-check ${g.got?'got':''}" onclick="toggleGrocery('${id}',${!g.got})">${g.got?'✓':''}</div>
+      <div class="grocery-label ${g.got?'got':''}">${g.label}</div>
+      <span class="grocery-cat-badge">${g.cat}</span>
+      <button class="delete-btn" onclick="deleteGrocery('${id}')">✕</button>`;
+    list.appendChild(item);
+  });
+}
+function setGroceryCat(cat){selectedGroceryCat=cat;renderGroceries();}
+async function toggleGrocery(id,val){await dbUpdate(`groceries/${id}`,{got:val});}
+async function deleteGrocery(id){await dbRemove(`groceries/${id}`);}
+async function addGroceryItem(){
+  const inp=document.getElementById('grocery-input');
+  const label=inp.value.trim();if(!label)return;
+  const cat=document.getElementById('grocery-cat').value;
+  await dbPush('groceries',{label,got:false,cat,addedBy:currentUser?.name||'Guest'});inp.value='';
+}
+async function clearGotItems(){
+  for(const id of Object.entries(groceries).filter(([,g])=>g.got).map(([id])=>id))await dbRemove(`groceries/${id}`);
+  showToast('Cleared checked items');
+}
+
+// ── ADD EVENT ──
+function toggleRecurringEnd(){
+  document.getElementById('recurring-end-group').style.display=document.getElementById('evt-recurring').value==='none'?'none':'flex';
+}
+function openModal(){
+  document.getElementById('modal-backdrop').classList.add('open');
+  document.getElementById('evt-date').value=selectedDate;
+  document.getElementById('evt-recurring').value='none';
+  document.getElementById('recurring-end-group').style.display='none';
+  document.getElementById('evt-recurring-end').value='';
+  if(currentUser&&currentUser.name!=='Guest')document.getElementById('evt-person').value=currentUser.name;
+}
+function closeModal(){document.getElementById('modal-backdrop').classList.remove('open');}
+function closeModalBackdrop(e){if(e.target===document.getElementById('modal-backdrop'))closeModal();}
+async function saveEvent(){
+  const person=document.getElementById('evt-person').value;
+  const title=document.getElementById('evt-title').value.trim();
+  const date=document.getElementById('evt-date').value;
+  const time=document.getElementById('evt-time').value;
+  const type=document.getElementById('evt-type').value;
+  const recurring=document.getElementById('evt-recurring').value;
+  const recurringEnd=document.getElementById('evt-recurring-end').value||null;
+  if(!title||!date){showToast('Please fill in a title and date');return;}
+  await dbPush('events',{person,title,date,time,type,recurring,recurringEnd,created:Date.now()});
+  closeModal();showToast(`Event added for ${person}`);
+  document.getElementById('evt-title').value='';document.getElementById('evt-time').value='';
+}
+
+// ── WEATHER ──
+async function refreshWeather(){
+  document.getElementById('weather-desc').textContent='Locating...';
+  if(navigator.geolocation)navigator.geolocation.getCurrentPosition(
+    p=>fetchWeather(p.coords.latitude,p.coords.longitude,true),
+    ()=>fetchWeather(36.3348,-92.3849,false));
+  else fetchWeather(36.3348,-92.3849,false);
+}
+async function fetchWeather(lat,lon,geo){
+  try{
+    const d=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`)).json();
+    const cw=d.current_weather;
+    document.getElementById('weather-icon').textContent=wmoIcon(cw.weathercode);
+    document.getElementById('weather-temp').textContent=Math.round(cw.temperature)+'°F';
+    document.getElementById('weather-desc').textContent=wmoDesc(cw.weathercode);
+    document.getElementById('weather-loc').textContent=geo?'Your Location':'Mountain Home, AR';
+  }catch{document.getElementById('weather-desc').textContent='Unavailable';}
+}
+function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=49)return'🌫️';if(c<=59)return'🌦️';if(c<=69)return'🌧️';if(c<=79)return'🌨️';if(c<=82)return'🌧️';if(c<=99)return'⛈️';return'🌤️';}
+function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
+
+// ── NOTIFICATIONS ──
+async function requestNotifications(){
+  if(!('Notification'in window)){showToast('Not supported');return;}
+  const perm=await Notification.requestPermission();
+  updateNotifBtn(perm);
+  if(perm==='granted'){showToast('Alerts on!');new Notification(`Hey ${currentUser?.name||'there'}!`,{body:'Young Family Dashboard alerts are on.'});scheduleNotifications();}
+  else showToast('Blocked — enable in browser settings.');
+}
+function updateNotifBtn(perm){
+  const btn=document.getElementById('notif-btn');if(!btn)return;
+  if(perm==='granted'){btn.textContent='On';btn.className='notif-btn enabled';}
+  else if(perm==='denied'){btn.textContent='Off';btn.className='notif-btn denied';}
+  else{btn.textContent='Alerts';btn.className='notif-btn';}
+}
+function scheduleNotifications(){
+  if(Notification.permission!=='granted')return;
+  Object.values(events).filter(e=>eventOccursOn(e,todayStr)&&e.person===currentUser?.name&&e.time).forEach(e=>{
+    const[h,m]=e.time.split(':').map(Number);
+    const evTime=new Date(today);evTime.setHours(h,m,0,0);
+    const delay=evTime-Date.now()-900000;
+    if(delay>0)setTimeout(()=>new Notification(`Coming up, ${currentUser.name}!`,{body:`${e.title} in 15 min`}),delay);
+  });
+}
+
+// ── HOME ASSISTANT ──
+function openHAModal(){
+  if(haConfig){document.getElementById('ha-url-input').value=haConfig.url||'';document.getElementById('ha-token-input').value=haConfig.token||'';}
+  document.getElementById('ha-modal').classList.add('open');
+}
+function closeHAModal(){document.getElementById('ha-modal').classList.remove('open');}
+function closeHAModalBackdrop(e){if(e.target===document.getElementById('ha-modal'))closeHAModal();}
+function saveHAConfig(){
+  const url=document.getElementById('ha-url-input').value.trim().replace(/\/$/,'');
+  const token=document.getElementById('ha-token-input').value.trim();
+  if(!url||!token){showToast('Enter URL and token');return;}
+  haConfig={url,token};localStorage.setItem('young_ha_config',JSON.stringify(haConfig));
+  closeHAModal();refreshHA();
+}
+function disconnectHA(){haConfig=null;localStorage.removeItem('young_ha_config');closeHAModal();renderHASetup();
+  document.getElementById('ha-dot').className='ha-dot';document.getElementById('ha-status-text').textContent='Not connected';}
+function renderHASetup(){document.getElementById('ha-content').innerHTML='<div class="ha-setup">Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br><button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button></div>';}
+async function refreshHA(){
+  if(!haConfig)return;
+  document.getElementById('ha-status-text').textContent='Connecting...';
+  try{
+    const res=await fetch(`${haConfig.url}/api/states`,{headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'}});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    const all=await res.json();
+    haEntities=all.filter(e=>['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'].includes(e.entity_id.split('.')[0]));
+    document.getElementById('ha-dot').className='ha-dot connected';
+    document.getElementById('ha-status-text').textContent=`Connected - ${haEntities.length} entities`;
+    renderHATiles();
+  }catch(err){
+    document.getElementById('ha-dot').className='ha-dot error';
+    document.getElementById('ha-status-text').textContent='Connection failed';
+    document.getElementById('ha-content').innerHTML=`<div class="ha-setup">Could not connect.<br><span style="color:#ff6b6b;font-size:.8rem;">${err.message}</span><br><br><button class="btn btn-primary" onclick="openHAModal()">Try Again</button></div>`;
+  }
+}
+function renderHATiles(){
+  const priority=['light','switch','lock','climate','cover'];
+  const sorted=[...haEntities].sort((a,b)=>{const ia=priority.indexOf(a.entity_id.split('.')[0]),ib=priority.indexOf(b.entity_id.split('.')[0]);return(ia<0?99:ia)-(ib<0?99:ib);});
+  document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${sorted.slice(0,12).map(haTile).join('')}</div>${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length}</div>`:''}`;
+}
+function haTile(entity){
+  const domain=entity.entity_id.split('.')[0],state=entity.state;
+  const name=entity.attributes.friendly_name||entity.entity_id;
+  const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
+  const unavail=state==='unavailable'||state==='unknown';
+  const canToggle=['light','switch','input_boolean','cover'].includes(domain);
+  return`<div class="ha-tile${isOn?' on':''}${unavail?' unavailable':''}" ${canToggle&&!unavail?`onclick="haToggle('${entity.entity_id}','${domain}','${state}')"`:''}><div class="ha-icon">${haIcon(domain,state,entity.attributes)}</div><div class="ha-name">${name.length>18?name.slice(0,16)+'...':name}</div><div class="ha-state ${isOn?'on':''}">${haStateLabel(domain,state,entity.attributes)}</div></div>`;
+}
+function haIcon(d,s,a){const on=s==='on'||s==='open'||s==='unlocked';if(d==='light')return on?'💡':'🔦';if(d==='switch')return on?'🔵':'⚪';if(d==='lock')return s==='locked'?'🔒':'🔓';if(d==='climate')return a.hvac_action==='heating'?'🔥':a.hvac_action==='cooling'?'❄️':'🌡️';if(d==='cover')return on?'⬆️':'⬇️';if(d==='binary_sensor')return on?'🟢':'⚫';if(d==='sensor')return'📊';return'🏠';}
+function haStateLabel(d,s,a){if(d==='climate')return a.current_temperature?`${a.current_temperature} -> ${a.temperature||'?'} target`:s;if(d==='sensor')return`${s}${a.unit_of_measurement||''}`;if(d==='lock')return s==='locked'?'Locked':'Unlocked';return s;}
+async function haToggle(entityId,domain,cur){
+  if(!haConfig)return;
+  const svc=domain==='cover'?(cur==='open'?'close_cover':'open_cover'):(cur==='on'?'turn_off':'turn_on');
+  try{await fetch(`${haConfig.url}/api/services/${domain}/${svc}`,{method:'POST',headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'},body:JSON.stringify({entity_id:entityId})});setTimeout(refreshHA,800);}
+  catch{showToast('Could not control device');}
+}
+
+// ── TOAST ──
+function showToast(msg,duration=3000){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),duration);
+}
+
+// ── HELPERS ──
+function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
+function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
+function showFirebaseHelp(){alert('Firebase is already configured. If you need to reset rules: firebase.google.com → your project → Realtime Database → Rules.');}
+
+// ── SERVICE WORKER ──
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.type==='SW_UPDATED')window.location.reload();});
+}
+
+// ── BOOT ──
+waitForFirebase();
+</script>
+</body>
+</html>
