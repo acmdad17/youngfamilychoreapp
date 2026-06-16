@@ -117,7 +117,7 @@
   #app{display:none;flex-direction:column;min-height:100vh;}
   #app.visible{display:flex;}
   header{padding:18px 32px 14px;display:flex;align-items:center;justify-content:space-between;
-    border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px;background:var(--bg);position:sticky;top:0;z-index:50;}
+    border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px;background:var(--bg);position:sticky;top:0;z-index:300;}
   .header-left{display:flex;align-items:center;gap:14px;}
   .logo{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:2px;
     background:linear-gradient(135deg,#ff7eb3,#ffd166,#06d6a0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
@@ -214,8 +214,16 @@
   .chore-add-btn:hover{background:rgba(6,214,160,.25);}
   .chore-counters{display:flex;flex-wrap:wrap;gap:6px;}
   .counter-chip{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:4px;}
-  .counter-x{cursor:pointer;opacity:.6;font-size:.7rem;}
-  .counter-x:hover{opacity:1;}
+  .counter-x{cursor:pointer;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;
+    background:rgba(255,107,107,.15);color:#ff6b6b;margin-left:4px;white-space:nowrap;}
+  .counter-x:hover{background:rgba(255,107,107,.3);}
+  /* filter chips */
+  .person-filter-chip{font-size:.72rem;font-weight:700;padding:5px 13px;border-radius:20px;cursor:pointer;
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .2s;white-space:nowrap;}
+  .person-filter-chip:hover{border-color:var(--muted);color:var(--text);}
+  .chore-deadline{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:3px;display:inline-block;}
+  .chore-deadline.overdue{background:rgba(255,107,107,.15);color:#ff6b6b;}
+  .chore-deadline.ok{background:rgba(6,214,160,.1);color:#06d6a0;}
   .chore-history-btn{background:none;border:none;color:var(--muted);font-size:.7rem;cursor:pointer;text-decoration:underline;align-self:flex-start;}
   .chore-history-btn:hover{color:var(--text);}
   .add-chore-row{display:flex;gap:8px;flex-wrap:wrap;}
@@ -334,7 +342,7 @@
 </div>
 
 <!-- WHAT'S NEW MODAL -->
-<div class="modal-backdrop" id="whats-new-modal">
+<div class="modal-backdrop" id="whats-new-modal" onclick="if(event.target===this)skipWhatsNew()">
   <div class="modal">
     <h2 id="wn-title">Hey! 👋</h2>
     <p style="font-size:.85rem;color:var(--muted);">Anything new before you dive in?</p>
@@ -405,6 +413,10 @@
         <option value="4">4 times a day</option>
         <option value="0">No limit (as needed)</option>
       </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label>Scheduled Time (optional)</label><input type="time" id="new-chore-time"></div>
+      <div class="form-group"><label>Due By (optional)</label><input type="time" id="new-chore-due"></div>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeAddChoreModal()">Cancel</button>
@@ -484,6 +496,7 @@
   </div>
 
   <div class="main">
+    <div id="filter-chips" style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;"></div>
     <div class="week-strip" id="week-strip"></div>
 
     <!-- Selected Day -->
@@ -579,6 +592,7 @@ let groceries={};
 let choreLog={};
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
+let filterMember=null;
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
 
@@ -717,14 +731,18 @@ function selectUser(name,emoji,color,cls){
   const ws=document.getElementById('welcome-screen');
   ws.classList.add('hidden');
   setTimeout(()=>ws.style.display='none',500);
-  if(name!=='Guest'){showWhatsNew(name);}
-  else{startApp();}
+  // Skip What's New when switching mid-session; only show on cold login
+  if(name!=='Guest'&&!window._switching){showWhatsNew(name);}
+  else{window._switching=false;startApp();}
 }
 
 function switchUser(){
+  window._switching=true;
   sessionStorage.removeItem('young_user');
   currentUser=null;
   document.getElementById('app').classList.remove('visible');
+  // Close any open modals before showing welcome
+  document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));
   const ws=document.getElementById('welcome-screen');
   ws.style.display='flex';ws.classList.remove('hidden');
 }
@@ -778,12 +796,24 @@ function startApp(){
 
 function renderAll(){
   renderMyDayBanner();
+  renderFilterChips();
   renderWeek();
   renderSelectedDay();
   renderMembers();
   renderChores();
   renderGroceries();
 }
+
+function renderFilterChips(){
+  const el=document.getElementById('filter-chips');if(!el)return;
+  const all=[{key:null,label:'All 👨‍👩‍👧‍👦',color:'#8b949e'},...MEMBERS.map(m=>({key:m.key,label:m.emoji+' '+m.key,color:m.color}))];
+  el.innerHTML=all.map(c=>{
+    const active=filterMember===c.key;
+    const style=active?`background:${c.color}22;border-color:${c.color};color:${c.color}`:'';
+    return`<div class="person-filter-chip" style="${style}" onclick="setFilterMember(${c.key===null?'null':`'${c.key}'`})">${c.label}</div>`;
+  }).join('');
+}
+function setFilterMember(m){filterMember=m;renderFilterChips();renderWeek();renderSelectedDay();renderMembers();}
 
 // ── DAILY RESET ──
 async function checkDailyReset(){
@@ -825,7 +855,7 @@ function renderWeek(){
   const strip=document.getElementById('week-strip');strip.innerHTML='';
   const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const start=addDays(today,-2);
-  const evList=Object.values(events);
+  const evList=Object.values(events).filter(e=>!filterMember||e.person===filterMember);
   for(let i=0;i<7;i++){
     const d=addDays(start,i);const ds=fmtDate(d);
     const dayEvts=evList.filter(e=>e.date===ds);
@@ -847,7 +877,7 @@ function renderSelectedDay(){
   const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
   const dayEvts=Object.entries(events)
-    .filter(([,e])=>e.date===selectedDate)
+    .filter(([,e])=>e.date===selectedDate&&(!filterMember||e.person===filterMember))
     .sort(([,a],[,b])=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const list=document.getElementById('selected-events-list');
   if(!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
@@ -919,12 +949,18 @@ function renderChores(){
       </div>`;
     }).join('');
 
+    const nowTime=new Date().toTimeString().slice(0,5);
+    const isOverdue=!complete&&chore.dueBy&&nowTime>chore.dueBy;
     item.innerHTML=`
       <div class="chore-top">
         <div class="chore-icon">${chore.icon||'✅'}</div>
         <div class="chore-info">
-          <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">${chore.name}</div>
-          <div class="chore-freq">${freq>0?`${totalDone}/${freq} times today`:'Done '+totalDone+' time'+( totalDone!==1?'s':'')+' today'}</div>
+          <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">
+            ${chore.name}
+            ${chore.time?`<span style="font-size:.65rem;color:var(--muted);margin-left:6px">⏰ ${formatTime(chore.time)}</span>`:''}
+          </div>
+          <div class="chore-freq">${freq>0?`${totalDone}/${freq} times today`:'Done '+totalDone+' time'+(totalDone!==1?'s':'')+' today'}</div>
+          ${chore.dueBy?`<span class="chore-deadline ${isOverdue?'overdue':'ok'}">${isOverdue?'⚑ Overdue':'⚑ Due'} ${formatTime(chore.dueBy)}</span>`:''}
         </div>
         <div class="chore-actions">
           ${!complete||freq===0?`<button class="chore-add-btn" onclick="logChore('${id}')">I did it ✓</button>`:'<span style="color:#06d6a0;font-size:.8rem;font-weight:700;">✓ Done!</span>'}
@@ -964,6 +1000,8 @@ function openAddChoreModal(){
   document.getElementById('new-chore-name').value='';
   document.getElementById('new-chore-icon').value='';
   document.getElementById('new-chore-freq').value='1';
+  document.getElementById('new-chore-time').value='';
+  document.getElementById('new-chore-due').value='';
   document.getElementById('add-chore-modal').classList.add('open');
 }
 function closeAddChoreModal(){document.getElementById('add-chore-modal').classList.remove('open');}
@@ -973,8 +1011,10 @@ async function saveNewChore(){
   const name=document.getElementById('new-chore-name').value.trim();
   const icon=document.getElementById('new-chore-icon').value.trim()||'✅';
   const freq=document.getElementById('new-chore-freq').value;
+  const choreTime=document.getElementById('new-chore-time').value;
+  const choreDue=document.getElementById('new-chore-due').value;
   if(!name){showToast('Please enter a chore name');return;}
-  await dbPush('chores',{name,icon,freq:parseInt(freq),created:Date.now()});
+  await dbPush('chores',{name,icon,freq:parseInt(freq),time:choreTime||null,dueBy:choreDue||null,created:Date.now()});
   closeAddChoreModal();
   showToast(`✅ "${name}" added to chores!`);
 }
@@ -1162,48 +1202,4 @@ function renderHATiles(){
   });
   const shown=sorted.slice(0,12);
   document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${shown.map(e=>haTile(e)).join('')}</div>
-    ${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length} entities</div>`:''}`;
-}
-function haTile(entity){
-  const domain=entity.entity_id.split('.')[0];const state=entity.state;
-  const name=entity.attributes.friendly_name||entity.entity_id;
-  const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
-  const unavailable=state==='unavailable'||state==='unknown';
-  const canToggle=['light','switch','input_boolean','cover'].includes(domain);
-  return`<div class="ha-tile${isOn?' on':''}${unavailable?' unavailable':''}"
-    ${canToggle&&!unavailable?`onclick="haToggle('${entity.entity_id}','${domain}','${state}')"`:''}
-    title="${entity.entity_id}">
-    <div class="ha-icon">${haIcon(domain,state,entity.attributes)}</div>
-    <div class="ha-name">${name.length>18?name.slice(0,16)+'…':name}</div>
-    <div class="ha-state ${isOn?'on':'off'}">${haStateLabel(domain,state,entity.attributes)}</div></div>`;
-}
-function haIcon(d,s,a){const on=s==='on'||s==='open'||s==='unlocked';
-  if(d==='light')return on?'💡':'🔦';if(d==='switch')return on?'🔵':'⚪';
-  if(d==='lock')return s==='locked'?'🔒':'🔓';
-  if(d==='climate'){if(a.hvac_action==='heating')return'🔥';if(a.hvac_action==='cooling')return'❄️';return'🌡️';}
-  if(d==='cover')return on?'⬆️':'⬇️';if(d==='binary_sensor')return on?'🟢':'⚫';if(d==='sensor')return'📊';return'🏠';}
-function haStateLabel(d,s,a){
-  if(d==='climate'){const t=a.current_temperature;return t?`${t}° → ${a.temperature||'?'}°`:s;}
-  if(d==='sensor')return`${s}${a.unit_of_measurement||''}`;if(d==='lock')return s==='locked'?'Locked':'Unlocked';return s;}
-async function haToggle(entityId,domain,currentState){
-  if(!haConfig)return;
-  const service=domain==='cover'?(currentState==='open'?'close_cover':'open_cover'):(currentState==='on'?'turn_off':'turn_on');
-  try{
-    await fetch(`${haConfig.url}/api/services/${domain}/${service}`,{method:'POST',
-      headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:entityId})});
-    setTimeout(refreshHA,800);
-  }catch{showToast('❌ Could not control device');}
-}
-
-// ── TOAST ──
-function showToast(msg,duration=3000){
-  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),duration);
-}
-
-// ── HELPERS ──
-function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
-function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
-function showFirebaseHelp(){
-  alert(`Firebase Setup Steps:\n\n1. Go to firebase.google.com and create a free account\n2. Click "Add project" → name it "young-family"\n3. In the left sidebar → Build → Realtime Database → Create Database → Start in test mode\n4. Go to Project Settings (gear icon) → Your apps → Add app → Web\n5. Copy the firebaseConfig object\n6. Open index.html in a text editor\n7. Replace the REPLACE_WITH_YO
+    ${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length} entities</div>
