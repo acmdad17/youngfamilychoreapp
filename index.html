@@ -615,6 +615,28 @@
   </div>
 </div>
 
+<!-- ICAL MODAL -->
+<div class="modal-backdrop" id="ical-modal" onclick="if(event.target===this)closeIcalModal()">
+  <div class="modal">
+    <h2>📅 Calendar Feeds</h2>
+    <p style="font-size:.82rem;color:var(--muted);">Paste a Google Calendar, Apple Calendar, or school iCal URL to auto-import events. Each family member can have their own feed.</p>
+    <div id="ical-feeds-list" style="display:flex;flex-direction:column;gap:10px;margin:12px 0;"></div>
+    <div class="form-group"><label>Add Feed for Person</label>
+      <select id="ical-person" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;width:100%;">
+        ${(window._icalPersonOpts||MEMBERS.map(m=>m.key)).map?'':MEMBERS.map(m=>`<option>${m.key}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group"><label>iCal URL (starts with webcal:// or https://)</label>
+      <input type="url" id="ical-url-input" placeholder="https://calendar.google.com/calendar/ical/...">
+    </div>
+    <p style="font-size:.72rem;color:var(--muted);">Google Cal: Settings → your calendar → "Secret address in iCal format"<br>Requires a free <a href="https://developers.cloudflare.com/workers/" target="_blank" style="color:var(--accent)">Cloudflare Worker</a> proxy — see setup steps in the app.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeIcalModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIcalFeed()">Add Feed</button>
+    </div>
+  </div>
+</div>
+
 <!-- APP -->
 <div id="app">
   <header>
@@ -643,6 +665,7 @@
         </div>
       </div>
       <button class="notif-btn" id="notif-btn" onclick="requestNotifications()">🔔 Alerts</button>
+      <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openIcalModal()">📅 Cals</button>
       <button class="btn btn-primary" onclick="openModal()">+ Event</button>
     </div>
   </header>
@@ -786,6 +809,8 @@ let announcements={};
 let countdowns={};
 let points={};
 let rewards={};
+let streaks={};
+let calEvents={};
 
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
@@ -848,6 +873,7 @@ function subscribeAll(){
     const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef,
            mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef}=window._fb;
     const noop=()=>{};
+    const {ref,onValue:ov,db}=window._fb;
     onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();         setSyncStatus('live');},noop);
     onValue(choresRef(),        snap=>{chores       =snap.val()||{};renderChores();       setSyncStatus('live');},noop);
     onValue(groceriesRef(),     snap=>{groceries    =snap.val()||{};renderGroceries();    setSyncStatus('live');},noop);
@@ -857,6 +883,8 @@ function subscribeAll(){
     onValue(countdownsRef(),    snap=>{countdowns   =snap.val()||{};renderCountdownStrip();},noop);
     onValue(pointsRef(),        snap=>{points       =snap.val()||{};renderPointsTab();renderMembers();},noop);
     onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();},noop);
+    ov(ref(db,'streaks'),       snap=>{streaks      =snap.val()||{};renderChores();renderMembers();renderPointsTab();},noop);
+    ov(ref(db,'calEvents'),     snap=>{calEvents    =snap.val()||{};renderAll();},noop);
   }catch(e){
     console.error('subscribeAll error:',e);
     setSyncStatus('error');
@@ -1009,11 +1037,12 @@ function startApp(){
   updateDateDisplay();
   renderAll();
   fetchWeather(36.3348,-92.3849,false);
-  updateNotifBtn(Notification.permission||'default');
+  updateNotifBtn(typeof Notification!=='undefined'?Notification.permission:'denied');
   if(haConfig)refreshHA();else renderHASetup();
   checkDailyReset();
+  fetchAllIcalFeeds();
   if(currentUser.name!=='Guest')
-    setTimeout(()=>{if(Notification.permission==='default')showToast(`👋 Hi ${currentUser.name}! Tap 🔔 Alerts for reminders.`,5000);},1500);
+    setTimeout(()=>{if(typeof Notification==='undefined'||Notification.permission==='default')showToast(`👋 Hi ${currentUser.name}! Tap 🔔 for event reminders.`,5000);},1500);
 }
 
 function renderAll(){
@@ -1159,7 +1188,7 @@ function renderWeek(){
   const strip=document.getElementById('week-strip');strip.innerHTML='';
   const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const start=addDays(today,-2);
-  const evList=Object.values(events).filter(e=>!filterMember||e.person===filterMember);
+  const evList=[...Object.values(events),...Object.values(calEvents)].filter(e=>!filterMember||e.person===filterMember);
   for(let i=0;i<7;i++){
     const d=addDays(start,i);const ds=fmtDate(d);
     const dayEvts=evList.filter(e=>eventOccursOn(e,ds));
@@ -1182,7 +1211,7 @@ function renderSelectedDay(){
   const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-  const dayEvts=Object.entries(events)
+  const dayEvts=[...Object.entries(events),...Object.entries(calEvents)]
     .filter(([,e])=>eventOccursOn(e,selectedDate)&&(!filterMember||e.person===filterMember))
     .sort(([,a],[,b])=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const list=document.getElementById('selected-events-list');
@@ -1190,11 +1219,12 @@ function renderSelectedDay(){
   list.innerHTML=dayEvts.map(([id,e])=>{
     const isMe=currentUser&&e.person===currentUser.name;
     const isRecurring=e.recurring&&e.recurring!=='none';
-    return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}">
+    const isCal=!!e.fromCal;
+    return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}${isCal?';opacity:.85':''}">
       <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
-      <div style="flex:1"><div class="sel-event-title">${e.title}${isRecurring?'<span class="sel-recurring-badge">🔁</span>':''}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
-      <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person} · ${capitalize(e.type)}</div></div>
-      <button class="delete-btn" onclick="deleteEvent('${id}')">✕</button></div>`;
+      <div style="flex:1"><div class="sel-event-title">${isCal?'📅 ':''}${e.title}${isRecurring?'<span class="sel-recurring-badge">🔁</span>':''}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
+      <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person}${isCal?' · Calendar':' · '+capitalize(e.type)}</div></div>
+      ${!isCal?`<button class="delete-btn" onclick="deleteEvent('${id}')">✕</button>`:''}</div>`;
   }).join('');
 }
 async function deleteEvent(id){await dbRemove(`events/${id}`);}
@@ -1202,7 +1232,7 @@ async function deleteEvent(id){await dbRemove(`events/${id}`);}
 // ── MEMBERS ──
 function renderMembers(){
   const grid=document.getElementById('members-grid');grid.innerHTML='';
-  const evList=Object.values(events);
+  const evList=[...Object.values(events),...Object.values(calEvents)];
   MEMBERS.forEach((m,i)=>{
     const dayEvts=evList.filter(e=>eventOccursOn(e,selectedDate)&&e.person===m.key);
     const isWork=dayEvts.some(e=>e.type==='work');
@@ -1211,6 +1241,9 @@ function renderMembers(){
     const statusLabel=isAway?'✈️ Away':isWork?'💼 At Work':'🏠 Home';
     const statusCls=isAway?'status-away':isWork?'status-work':'status-home';
     const pts=points[m.key]?.total||0;
+    const lv=getLevel(pts);
+    const topStreak=getBestStreak(m.key);
+    const allowBal=getAllowance(m.key);
     const card=document.createElement('div');
     card.className=`member-card ${m.cls}`;
     if(i===4)card.style.gridColumn='1/-1';
@@ -1223,7 +1256,8 @@ function renderMembers(){
         ?'<div style="font-size:.75rem;color:var(--muted)">Nothing scheduled</div>'
         :dayEvts.map(e=>`<div class="event-item"><div class="event-dot" style="background:${m.color}"></div><span class="event-time">${e.time?formatTime(e.time):'All day'}</span><span class="event-text">${e.title}</span></div>`).join('')
       }</div>
-      <div class="member-pts">⭐ ${pts} pts</div>`;
+      <div class="member-pts">${lv.emoji} ${pts}⭐ <span style="color:${lv.color};font-size:.7rem;font-weight:700;">${lv.label}</span>${topStreak>1?` · 🔥${topStreak}`:''}${allowBal>0?` · 💰$${allowBal.toFixed(0)}`:''}
+      </div>`;
     grid.appendChild(card);
   });
 }
@@ -1259,6 +1293,7 @@ function renderChores(){
         <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">
           ${chore.name}<span class="chore-points-badge">&#11088;${pts}</span>
           ${chore.time?`<span style="font-size:.65rem;color:var(--muted);margin-left:4px">&#9200; ${formatTime(chore.time)}</span>`:''}
+          ${buildChoreStreakBadges(id)}
         </div>
         <div class="chore-freq">${freq>0?`${totalDone}/${freq} today`:'Done '+totalDone+' time'+(totalDone!==1?'s':'')+' today'}</div>
         <div class="chore-assigned-badge">${assignedStr}</div>
@@ -1282,7 +1317,40 @@ async function logChore(choreId){
   const pts=chores[choreId]?.points||1;
   const cur=points[currentUser.name]?.total||0;
   await dbSet(`points/${currentUser.name}/total`,cur+pts);
-  showToast(`✅ Logged for ${currentUser.name}! +${pts} pts`);
+  const streak=await updateStreak(currentUser.name,choreId);
+  const streakMsg=streak>1?` 🔥 ${streak} day streak!`:'';
+  showToast(`✅ +${pts}⭐${streakMsg}`);
+  if(streak>0&&streak%7===0)await swNotify(`🔥 ${currentUser.name} is on fire!`,`${streak}-day streak on "${chores[choreId]?.name}"! Keep it up!`,'streak');
+}
+async function updateStreak(person,choreId){
+  const key=`${person}_${choreId}`;
+  const cur=streaks[key]||{current:0,best:0,lastDate:''};
+  const yesterday=fmtDate(addDays(today,-1));
+  let newStreak=cur.lastDate===yesterday||cur.lastDate===todayStr?cur.current:0;
+  if(cur.lastDate!==todayStr)newStreak++;
+  const best=Math.max(newStreak,cur.best||0);
+  await dbSet(`streaks/${key}`,{current:newStreak,best,lastDate:todayStr});
+  return newStreak;
+}
+function getStreak(person,choreId){return(streaks[`${person}_${choreId}`]||{}).current||0;}
+function getBestStreak(person){
+  return Math.max(0,...Object.entries(streaks).filter(([k])=>k.startsWith(person+'_')).map(([,v])=>v.current||0));
+}
+function getTotalStreak(person){
+  return Object.entries(streaks).filter(([k])=>k.startsWith(person+'_')).reduce((sum,[,v])=>sum+(v.current||0),0);
+}
+function buildChoreStreakBadges(choreId){
+  return Object.entries(streaks)
+    .filter(([k,v])=>k.endsWith('_'+choreId)&&v.current>1)
+    .map(([k,v])=>'<span style="font-size:.65rem;color:#ff8c42;margin-left:4px">🔥'+v.current+' '+k.split('_')[0]+'</span>')
+    .join('');
+}
+function getLevel(pts){
+  if(pts>=500)return{label:'Legend',emoji:'👑',color:'#ffd700'};
+  if(pts>=200)return{label:'Pro',emoji:'🏆',color:'#ff8c42'};
+  if(pts>=100)return{label:'Champ',emoji:'🥇',color:'#06d6a0'};
+  if(pts>=50)return{label:'Rising',emoji:'⭐',color:'#4fc3f7'};
+  return{label:'Rookie',emoji:'🌱',color:'#8b949e'};
 }
 async function undoChore(choreId,person){
   const todayLog=choreLog[todayStr]?.[choreId]||{};
@@ -1371,9 +1439,15 @@ function setPointsTab(tab,btn){
 function renderPointsTab(){
   const el=document.getElementById('points-tab-content');if(!el)return;
   if(currentPointsTab==='points'){
-    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${MEMBERS.map(m=>`
-      <div class="pts-person"><span class="pts-name">${m.emoji} ${m.key}</span>
-      <span class="pts-val">${points[m.key]?.total||0}</span></div>`).join('')}</div>`;
+    const ranked=[...MEMBERS].sort((a,b)=>(points[b.key]?.total||0)-(points[a.key]?.total||0));
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${ranked.map((m,i)=>{
+      const pts=points[m.key]?.total||0;const lv=getLevel(pts);const streak=getBestStreak(m.key);
+      return`<div class="pts-person" style="${i===0?'background:'+m.color+'18;border:1px solid '+m.color+'44;border-radius:8px;padding:6px 8px;':'' }">
+        <span class="pts-name">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${m.emoji} ${m.key}</span>
+        <span style="font-size:.7rem;color:${lv.color};font-weight:700;">${lv.emoji} ${lv.label}</span>
+        ${streak>1?`<span style="font-size:.72rem;color:#ff8c42;">🔥${streak}</span>`:''}
+        <span class="pts-val">${pts}⭐</span></div>`;
+    }).join('')}</div>`;
   }else if(currentPointsTab==='rewards'){
     const arr=Object.entries(rewards);
     el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${arr.length?arr.map(([id,r])=>`
@@ -1499,27 +1573,134 @@ function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'�
 function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
 
 // ── NOTIFICATIONS ──
+async function swNotify(title,body,tag){
+  // SW showNotification works in foreground AND background; falls back to Notification API
+  try{
+    if('serviceWorker'in navigator){
+      const reg=await navigator.serviceWorker.ready;
+      await reg.showNotification(title,{body,icon:'https://acmdad17.github.io/youngfamilychoreapp/icon-192.png',badge:'https://acmdad17.github.io/youngfamilychoreapp/icon-192.png',tag:tag||title,vibrate:[200,100,200]});
+      return;
+    }
+  }catch(e){console.warn('SW notify failed:',e);}
+  if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body});
+}
 async function requestNotifications(){
-  if(!('Notification'in window)){showToast('Not supported');return;}
+  if(!('Notification'in window)){showToast('Notifications not supported on this browser');return;}
   const perm=await Notification.requestPermission();
   updateNotifBtn(perm);
-  if(perm==='granted'){showToast('Alerts on!');new Notification(`Hey ${currentUser?.name||'there'}!`,{body:'Young Family Dashboard alerts are on.'});scheduleNotifications();}
-  else showToast('Blocked — enable in browser settings.');
+  if(perm==='granted'){
+    await swNotify(`Hey ${currentUser?.name||'there'}! 👋`,'Young Family Dashboard alerts are now on. You\'ll get 15-min event reminders.','welcome');
+    showToast('🔔 Alerts on!');
+    scheduleNotifications();
+  } else {
+    showToast('Blocked — check your browser notification settings.');
+  }
 }
 function updateNotifBtn(perm){
   const btn=document.getElementById('notif-btn');if(!btn)return;
-  if(perm==='granted'){btn.textContent='On';btn.className='notif-btn enabled';}
-  else if(perm==='denied'){btn.textContent='Off';btn.className='notif-btn denied';}
-  else{btn.textContent='Alerts';btn.className='notif-btn';}
+  if(perm==='granted'){btn.textContent='🔔 On';btn.className='notif-btn enabled';}
+  else if(perm==='denied'){btn.textContent='🔕 Blocked';btn.className='notif-btn denied';}
+  else{btn.textContent='🔔 Alerts';btn.className='notif-btn';}
 }
 function scheduleNotifications(){
-  if(Notification.permission!=='granted')return;
+  if(typeof Notification==='undefined'||Notification.permission!=='granted')return;
   Object.values(events).filter(e=>eventOccursOn(e,todayStr)&&e.person===currentUser?.name&&e.time).forEach(e=>{
     const[h,m]=e.time.split(':').map(Number);
     const evTime=new Date(today);evTime.setHours(h,m,0,0);
-    const delay=evTime-Date.now()-900000;
-    if(delay>0)setTimeout(()=>new Notification(`Coming up, ${currentUser.name}!`,{body:`${e.title} in 15 min`}),delay);
+    const delay=evTime-Date.now()-900000;// 15 min before
+    if(delay>0)setTimeout(()=>swNotify(`⏰ ${currentUser.name} — coming up!`,`${e.title} starts in 15 minutes`,'event-'+e.title),delay);
   });
+}
+
+// ── ICAL CALENDAR IMPORT ──
+const ICAL_PROXY_KEY='young_ical_proxy';
+function openIcalModal(){
+  const sel=document.getElementById('ical-person');
+  if(sel)sel.innerHTML=MEMBERS.map(m=>'<option value="'+m.key+'">'+m.emoji+' '+m.key+'</option>').join('');
+  renderIcalFeedsList();
+  document.getElementById('ical-modal').classList.add('open');
+}
+function closeIcalModal(){document.getElementById('ical-modal').classList.remove('open');}
+function renderIcalFeedsList(){
+  const feeds=JSON.parse(localStorage.getItem('young_ical_feeds')||'{}');
+  const el=document.getElementById('ical-feeds-list');if(!el)return;
+  const entries=Object.entries(feeds);
+  if(!entries.length){el.innerHTML='<div style="font-size:.8rem;color:var(--muted)">No feeds added yet. Add a calendar URL below.</div>';return;}
+  el.innerHTML=entries.map(([person,url])=>{
+    const m=MEMBERS.find(x=>x.key===person)||{emoji:'📅'};
+    return'<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:8px;padding:8px 10px;">'
+      +'<span style="font-weight:700;font-size:.85rem;">'+m.emoji+' '+person+'</span>'
+      +'<span style="font-size:.7rem;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+url.slice(0,50)+'...</span>'
+      +'<button class="delete-btn" onclick="removeIcalFeed(\''+person+'\')">x</button></div>';
+  }).join('');
+}
+async function saveIcalFeed(){
+  const person=document.getElementById('ical-person').value;
+  let url=(document.getElementById('ical-url-input').value||'').trim().replace(/^webcal:/,'https:');
+  if(!url){showToast('Enter a calendar URL');return;}
+  const feeds=JSON.parse(localStorage.getItem('young_ical_feeds')||'{}');
+  feeds[person]=url;
+  localStorage.setItem('young_ical_feeds',JSON.stringify(feeds));
+  document.getElementById('ical-url-input').value='';
+  renderIcalFeedsList();
+  showToast('Feed saved for '+person+'!');
+  fetchIcalFeed(person,url);
+}
+function removeIcalFeed(person){
+  const feeds=JSON.parse(localStorage.getItem('young_ical_feeds')||'{}');
+  delete feeds[person];
+  localStorage.setItem('young_ical_feeds',JSON.stringify(feeds));
+  Object.keys(calEvents).filter(k=>calEvents[k].calPerson===person).forEach(k=>dbRemove('calEvents/'+k));
+  renderIcalFeedsList();
+  showToast('Removed feed for '+person);
+}
+async function fetchAllIcalFeeds(){
+  const feeds=JSON.parse(localStorage.getItem('young_ical_feeds')||'{}');
+  for(const[person,url]of Object.entries(feeds))await fetchIcalFeed(person,url);
+}
+async function fetchIcalFeed(person,url){
+  const proxy=localStorage.getItem(ICAL_PROXY_KEY)||'';
+  if(!proxy)return;
+  try{
+    const res=await fetch(proxy+'?url='+encodeURIComponent(url));
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const text=await res.text();
+    const imported=parseIcal(text,person);
+    const oldKeys=Object.keys(calEvents).filter(k=>calEvents[k].calPerson===person);
+    for(const k of oldKeys)await dbRemove('calEvents/'+k);
+    for(const ev of imported)await dbPush('calEvents',ev);
+    showToast('Imported '+imported.length+' events for '+person);
+  }catch(e){showToast('Calendar sync failed: '+e.message);}
+}
+function parseIcal(text,person){
+  const result=[];
+  const blocks=text.split('BEGIN:VEVENT');
+  for(let i=1;i<blocks.length;i++){
+    const b=blocks[i];
+    const get=key=>{const m=b.match(new RegExp(key+'(?:;[^:]*)?:([^\r\n]+)'));return m?m[1].trim():null;};
+    const summary=get('SUMMARY');if(!summary)continue;
+    const dtstart=get('DTSTART');if(!dtstart)continue;
+    const ds=dtstart.replace(/T.*/,'');
+    const dateStr=ds.slice(0,4)+'-'+ds.slice(4,6)+'-'+ds.slice(6,8);
+    const time=dtstart.includes('T')?dtstart.slice(9,11)+':'+dtstart.slice(11,13):null;
+    const rrule=get('RRULE')||'';
+    result.push({person,title:summary,date:dateStr,time,type:'personal',recurring:'none',calPerson:person,fromCal:true,created:Date.now()});
+    if(rrule.includes('FREQ=WEEKLY')){
+      let d=new Date(dateStr+'T12:00:00');
+      for(let j=1;j<=12;j++){
+        d=addDays(d,7);
+        result.push({person,title:summary,date:fmtDate(d),time,type:'personal',recurring:'none',calPerson:person,fromCal:true,created:Date.now()});
+      }
+    }
+  }
+  return result;
+}
+function saveIcalProxyUrl(){
+  const url=prompt('Enter your Cloudflare Worker URL (e.g. https://ical-proxy.yourname.workers.dev):');
+  if(!url)return;
+  localStorage.setItem(ICAL_PROXY_KEY,url.trim().replace(/\/$/,''));
+  showToast('Proxy saved! Syncing calendars...');
+  fetchAllIcalFeeds();
 }
 
 // ── HOME ASSISTANT ──
@@ -1543,23 +1724,23 @@ async function refreshHA(){
   if(!haConfig)return;
   document.getElementById('ha-status-text').textContent='Connecting...';
   try{
-    const res=await fetch(`${haConfig.url}/api/states`,{headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'}});
-    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    const res=await fetch(haConfig.url+'/api/states',{headers:{'Authorization':'Bearer '+haConfig.token,'Content-Type':'application/json'}});
+    if(!res.ok)throw new Error('HTTP '+res.status);
     const all=await res.json();
     haEntities=all.filter(e=>['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'].includes(e.entity_id.split('.')[0]));
     document.getElementById('ha-dot').className='ha-dot connected';
-    document.getElementById('ha-status-text').textContent=`Connected - ${haEntities.length} entities`;
+    document.getElementById('ha-status-text').textContent='Connected - '+haEntities.length+' entities';
     renderHATiles();
   }catch(err){
     document.getElementById('ha-dot').className='ha-dot error';
     document.getElementById('ha-status-text').textContent='Connection failed';
-    document.getElementById('ha-content').innerHTML=`<div class="ha-setup">Could not connect.<br><span style="color:#ff6b6b;font-size:.8rem;">${err.message}</span><br><br><button class="btn btn-primary" onclick="openHAModal()">Try Again</button></div>`;
+    document.getElementById('ha-content').innerHTML='<div class="ha-setup">Could not connect.<br><span style="color:#ff6b6b;font-size:.8rem;">'+err.message+'</span><br><br><button class="btn btn-primary" onclick="openHAModal()">Try Again</button></div>';
   }
 }
 function renderHATiles(){
   const priority=['light','switch','lock','climate','cover'];
   const sorted=[...haEntities].sort((a,b)=>{const ia=priority.indexOf(a.entity_id.split('.')[0]),ib=priority.indexOf(b.entity_id.split('.')[0]);return(ia<0?99:ia)-(ib<0?99:ib);});
-  document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${sorted.slice(0,12).map(haTile).join('')}</div>${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length}</div>`:''}`;
+  document.getElementById('ha-content').innerHTML='<div class="ha-grid">'+sorted.slice(0,12).map(haTile).join('')+'</div>'+(haEntities.length>12?'<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of '+haEntities.length+'</div>':'');
 }
 function haTile(entity){
   const domain=entity.entity_id.split('.')[0],state=entity.state;
@@ -1567,14 +1748,17 @@ function haTile(entity){
   const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
   const unavail=state==='unavailable'||state==='unknown';
   const canToggle=['light','switch','input_boolean','cover'].includes(domain);
-  return`<div class="ha-tile${isOn?' on':''}${unavail?' unavailable':''}" ${canToggle&&!unavail?`onclick="haToggle('${entity.entity_id}','${domain}','${state}')"`:''}><div class="ha-icon">${haIcon(domain,state,entity.attributes)}</div><div class="ha-name">${name.length>18?name.slice(0,16)+'...':name}</div><div class="ha-state ${isOn?'on':''}">${haStateLabel(domain,state,entity.attributes)}</div></div>`;
+  return'<div class="ha-tile'+(isOn?' on':'')+(unavail?' unavailable':'')+'" '+(canToggle&&!unavail?'onclick="haToggle(\''+entity.entity_id+'\',\''+domain+'\',\''+state+'\')"':'')+'>'+
+    '<div class="ha-icon">'+haIcon(domain,state,entity.attributes)+'</div>'+
+    '<div class="ha-name">'+(name.length>18?name.slice(0,16)+'...':name)+'</div>'+
+    '<div class="ha-state '+(isOn?'on':'')+'">'+haStateLabel(domain,state,entity.attributes)+'</div></div>';
 }
 function haIcon(d,s,a){const on=s==='on'||s==='open'||s==='unlocked';if(d==='light')return on?'💡':'🔦';if(d==='switch')return on?'🔵':'⚪';if(d==='lock')return s==='locked'?'🔒':'🔓';if(d==='climate')return a.hvac_action==='heating'?'🔥':a.hvac_action==='cooling'?'❄️':'🌡️';if(d==='cover')return on?'⬆️':'⬇️';if(d==='binary_sensor')return on?'🟢':'⚫';if(d==='sensor')return'📊';return'🏠';}
-function haStateLabel(d,s,a){if(d==='climate')return a.current_temperature?`${a.current_temperature} -> ${a.temperature||'?'} target`:s;if(d==='sensor')return`${s}${a.unit_of_measurement||''}`;if(d==='lock')return s==='locked'?'Locked':'Unlocked';return s;}
+function haStateLabel(d,s,a){if(d==='climate')return a.current_temperature?a.current_temperature+' to '+( a.temperature||'?')+' target':s;if(d==='sensor')return s+(a.unit_of_measurement||'');if(d==='lock')return s==='locked'?'Locked':'Unlocked';return s;}
 async function haToggle(entityId,domain,cur){
   if(!haConfig)return;
   const svc=domain==='cover'?(cur==='open'?'close_cover':'open_cover'):(cur==='on'?'turn_off':'turn_on');
-  try{await fetch(`${haConfig.url}/api/services/${domain}/${svc}`,{method:'POST',headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'},body:JSON.stringify({entity_id:entityId})});setTimeout(refreshHA,800);}
+  try{await fetch(haConfig.url+'/api/services/'+domain+'/'+svc,{method:'POST',headers:{'Authorization':'Bearer '+haConfig.token,'Content-Type':'application/json'},body:JSON.stringify({entity_id:entityId})});setTimeout(refreshHA,800);}
   catch{showToast('Could not control device');}
 }
 
@@ -1585,7 +1769,7 @@ function showToast(msg,duration=3000){
 }
 
 // ── HELPERS ──
-function formatTime(t){const[h,m]=t.split(':').map(Number);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;}
+function formatTime(t){const[h,m]=t.split(':').map(Number);return(h%12||12)+':'+(m.toString().padStart(2,'0'))+' '+(h>=12?'PM':'AM');}
 function capitalize(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
 function showFirebaseHelp(){alert('Firebase is already configured. If you need to reset rules: firebase.google.com → your project → Realtime Database → Rules.');}
 
