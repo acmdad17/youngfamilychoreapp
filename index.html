@@ -817,53 +817,48 @@ function eventOccursOn(evt,dateStr){
 }
 
 // ── FIREBASE INIT ──
+// Boot the UI immediately after a short splash; Firebase syncs in the background.
 function waitForFirebase(){
-  if(window._fbReady){onFirebaseReady();}
-  else{document.addEventListener('fb-ready',onFirebaseReady);}
+  // Show welcome after 1.5s regardless of Firebase status
   setTimeout(()=>{
-    if(!fbReady){
-      document.getElementById('splash').classList.add('hidden');
-      document.getElementById('fb-setup-banner').classList.add('visible');
-      setSyncStatus('offline');
-      showWelcome();
-    }
-  },4000);
+    document.getElementById('splash').classList.add('hidden');
+    showWelcome();
+  }, 1500);
+
+  // Wire up Firebase whenever it's ready
+  if(window._fbReady){ onFirebaseReady(); }
+  else{ document.addEventListener('fb-ready', onFirebaseReady); }
+
+  // If Firebase never loads after 6s, mark offline
+  setTimeout(()=>{
+    if(!fbReady){ setSyncStatus('offline'); }
+  }, 6000);
 }
 
 function onFirebaseReady(){
   fbReady=true;
-  document.getElementById('splash-msg').textContent='Syncing family data...';
   setSyncStatus('connecting');
   subscribeAll();
 }
 
 function subscribeAll(){
-  const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef,
-         mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef}=window._fb;
-  let loaded=0;let booted=false;
-  const TOTAL=9; // settings removed from count — core data only
-  const boot=()=>{
-    if(booted)return;booted=true;
-    document.getElementById('splash').classList.add('hidden');
-    setSyncStatus('live');
-    showWelcome();
-  };
-  const check=()=>{if(++loaded>=TOTAL)boot();};
-  const err=()=>{check();}; // on permission error, still count as loaded
-
-  // Safety net: boot after 5s no matter what (handles rules issues, slow network)
-  setTimeout(boot,5000);
-
-  onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();check();},err);
-  onValue(choresRef(),        snap=>{chores       =snap.val()||{};renderChores();check();},err);
-  onValue(groceriesRef(),     snap=>{groceries    =snap.val()||{};renderGroceries();check();},err);
-  onValue(choreLogRef(),      snap=>{choreLog     =snap.val()||{};renderChores();check();},err);
-  onValue(mealsRef(),         snap=>{meals        =snap.val()||{};renderMeals();renderWeek();check();},err);
-  onValue(announcementsRef(), snap=>{announcements=snap.val()||{};renderAnnouncements();check();},err);
-  onValue(countdownsRef(),    snap=>{countdowns   =snap.val()||{};renderCountdownStrip();check();},err);
-  onValue(pointsRef(),        snap=>{points       =snap.val()||{};renderPointsTab();renderMembers();check();},err);
-  onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();check();},err);
-  onValue(window._fb.ref(window._fb.db,'settings'), snap=>{},()=>{}); // optional, not counted
+  try{
+    const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef,
+           mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef}=window._fb;
+    const noop=()=>{};
+    onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();         setSyncStatus('live');},noop);
+    onValue(choresRef(),        snap=>{chores       =snap.val()||{};renderChores();       setSyncStatus('live');},noop);
+    onValue(groceriesRef(),     snap=>{groceries    =snap.val()||{};renderGroceries();    setSyncStatus('live');},noop);
+    onValue(choreLogRef(),      snap=>{choreLog     =snap.val()||{};renderChores();},noop);
+    onValue(mealsRef(),         snap=>{meals        =snap.val()||{};renderMeals();renderWeek();},noop);
+    onValue(announcementsRef(), snap=>{announcements=snap.val()||{};renderAnnouncements();},noop);
+    onValue(countdownsRef(),    snap=>{countdowns   =snap.val()||{};renderCountdownStrip();},noop);
+    onValue(pointsRef(),        snap=>{points       =snap.val()||{};renderPointsTab();renderMembers();},noop);
+    onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();},noop);
+  }catch(e){
+    console.error('subscribeAll error:',e);
+    setSyncStatus('error');
+  }
 }
 
 function setSyncStatus(status){
@@ -1217,4 +1212,9 @@ function renderMembers(){
     const card=document.createElement('div');
     card.className=`member-card ${m.cls}`;
     if(i===4)card.style.gridColumn='1/-1';
-    if(isMe)card.style.outline=`2px solid
+    if(isMe)card.style.outline=`2px solid ${m.color}44`;
+    card.innerHTML=`<div class="member-header"><div>
+      <div class="member-name">${m.emoji} ${m.key}${isMe?'<span class="me-tag">you</span>':''}</div>
+      <div class="member-role">${m.role}</div></div>
+      <div class="status-badge ${statusCls}">${statusLabel}</div></div>
+      <div class="member-ev

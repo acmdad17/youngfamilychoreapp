@@ -1,4 +1,4 @@
-const CACHE = 'young-fam-v1';
+const CACHE = 'young-fam-v3';
 const APP_SHELL = [
   '/',
   '/index.html',
