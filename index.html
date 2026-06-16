@@ -10,13 +10,11 @@
 <meta name="apple-mobile-web-app-title" content="Young Fam">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-<!-- Firebase -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, onValue, set, push, update, remove, get }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  // ── PASTE YOUR FIREBASE CONFIG HERE ──
   const firebaseConfig = {
     apiKey: "AIzaSyBmvRv99OG5qK9P2MVCoBUTILvRX8v56P0",
     authDomain: "young-family-770d5.firebaseapp.com",
@@ -30,18 +28,20 @@
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
 
-  // Expose DB helpers to global scope
   window._fb = {
-    ref, onValue, set, push, update, remove, get,
-    db,
-    eventsRef:   () => ref(db, 'events'),
-    choresRef:   () => ref(db, 'chores'),
-    groceriesRef:() => ref(db, 'groceries'),
-    choreLogRef: () => ref(db, 'choreLog'),
-    settingsRef: () => ref(db, 'settings'),
+    ref, onValue, set, push, update, remove, get, db,
+    eventsRef:        () => ref(db, 'events'),
+    choresRef:        () => ref(db, 'chores'),
+    groceriesRef:     () => ref(db, 'groceries'),
+    choreLogRef:      () => ref(db, 'choreLog'),
+    settingsRef:      () => ref(db, 'settings'),
+    mealsRef:         () => ref(db, 'meals'),
+    announcementsRef: () => ref(db, 'announcements'),
+    countdownsRef:    () => ref(db, 'countdowns'),
+    pointsRef:        () => ref(db, 'points'),
+    rewardsRef:       () => ref(db, 'rewards'),
   };
 
-  // Signal app that Firebase is ready
   window._fbReady = true;
   document.dispatchEvent(new Event('fb-ready'));
 </script>
@@ -55,7 +55,7 @@
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-  /* ── SPLASH ── */
+  /* SPLASH */
   #splash{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:var(--bg);gap:16px;transition:opacity .4s;}
   #splash.hidden{opacity:0;pointer-events:none;}
@@ -66,7 +66,7 @@
   .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:#06d6a0;border-radius:50%;animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
 
-  /* ── WELCOME ── */
+  /* WELCOME */
   #welcome-screen{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:var(--bg);
     background-image:radial-gradient(ellipse at 15% 15%,rgba(255,126,179,.12) 0%,transparent 50%),
@@ -96,7 +96,7 @@
     color:var(--muted);font-family:'Nunito',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;}
   .guest-btn:hover{border-color:var(--muted);color:var(--text);}
 
-  /* ── MODALS ── */
+  /* MODALS */
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
     display:flex;align-items:center;justify-content:center;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s;}
   .modal-backdrop.open{opacity:1;pointer-events:all;}
@@ -112,8 +112,12 @@
   .form-group select option{background:var(--surface2);}
   .form-group textarea{resize:vertical;min-height:72px;}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+  .assign-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .assign-chip{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);
+    border-radius:10px;padding:8px 10px;cursor:pointer;font-size:.8rem;font-weight:700;transition:all .2s;}
+  .assign-chip input[type=checkbox]{accent-color:#06d6a0;width:14px;height:14px;}
 
-  /* ── APP ── */
+  /* APP */
   #app{display:none;flex-direction:column;min-height:100vh;}
   #app.visible{display:flex;}
   header{padding:18px 32px 14px;display:flex;align-items:center;justify-content:space-between;
@@ -147,13 +151,29 @@
   .btn-danger:hover{background:rgba(255,107,107,.2);}
   .btn-yellow{background:rgba(255,209,102,.15);border-color:#ffd166;color:#ffd166;}
   .btn-yellow:hover{background:rgba(255,209,102,.25);}
+  .btn-pink{background:rgba(255,126,179,.15);border-color:#ff7eb3;color:#ff7eb3;}
+  .btn-pink:hover{background:rgba(255,126,179,.25);}
   .notif-btn{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;
     cursor:pointer;transition:all .2s;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;color:var(--text);}
   .notif-btn.enabled{border-color:#06d6a0;color:#06d6a0;background:rgba(6,214,160,.1);}
   .notif-btn.denied{border-color:#ff6b6b;color:#ff6b6b;}
 
-  /* ── MY DAY ── */
-  #my-day-banner{margin:20px 32px 0;border-radius:16px;padding:18px 24px;
+  /* ANNOUNCEMENTS BAR */
+  #announcements-bar{display:flex;align-items:center;gap:10px;padding:10px 32px;overflow-x:auto;
+    border-bottom:1px solid var(--border);background:rgba(255,209,102,.04);}
+  #announcements-bar:empty{display:none;}
+  .annc-item{display:flex;align-items:center;gap:8px;background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.3);
+    border-radius:20px;padding:6px 14px;white-space:nowrap;flex-shrink:0;}
+  .annc-text{font-size:.8rem;font-weight:700;color:#ffd166;}
+  .annc-author{font-size:.68rem;color:var(--muted);}
+  .annc-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 2px;margin-left:4px;}
+  .annc-close:hover{color:#ff6b6b;}
+  .annc-add-btn{background:var(--surface2);border:1px dashed var(--border);border-radius:20px;padding:6px 14px;
+    font-size:.78rem;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0;}
+  .annc-add-btn:hover{border-color:#ffd166;color:#ffd166;}
+
+  /* MY DAY */
+  #my-day-banner{margin:16px 32px 0;border-radius:16px;padding:18px 24px;
     display:flex;align-items:center;gap:16px;border:1px solid var(--border);animation:fadeIn .4s ease;}
   .mdb-avatar{font-size:2rem;}
   .mdb-greeting{font-size:1.1rem;font-weight:800;}
@@ -161,11 +181,28 @@
   .mdb-events{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .mdb-chip{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;}
 
-  /* ── MAIN GRID ── */
-  .main{padding:20px 32px 32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+  /* MAIN GRID */
+  .main{padding:16px 32px 32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+
+  /* COUNTDOWN STRIP */
+  #countdown-strip{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;}
+  .countdown-chip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;padding:10px 16px;cursor:default;transition:all .2s;position:relative;}
+  .countdown-chip:hover{border-color:#4fc3f7;}
+  .countdown-icon{font-size:1.3rem;}
+  .countdown-label{font-size:.8rem;font-weight:700;}
+  .countdown-days{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:1px;color:#4fc3f7;}
+  .countdown-unit{font-size:.62rem;color:var(--muted);}
+  .countdown-del{position:absolute;top:4px;right:6px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;opacity:0;transition:opacity .2s;}
+  .countdown-chip:hover .countdown-del{opacity:1;}
+  .countdown-add-btn{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px dashed var(--border);
+    border-radius:14px;padding:10px 16px;font-size:.78rem;font-weight:700;color:var(--muted);cursor:pointer;transition:all .2s;}
+  .countdown-add-btn:hover{border-color:#4fc3f7;color:#4fc3f7;}
+
+  /* WEEK STRIP */
   .week-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
   .day-col{background:var(--surface);border:1px solid var(--border);border-radius:14px;
-    padding:12px 8px;cursor:pointer;transition:all .2s;min-height:100px;}
+    padding:12px 8px;cursor:pointer;transition:all .2s;min-height:90px;}
   .day-col:hover{border-color:#4fc3f7;transform:translateY(-2px);}
   .day-col.today{border-color:#ffd166;background:#21262d;}
   .day-col.selected{border-color:#06d6a0;box-shadow:0 0 0 2px rgba(6,214,160,.2);}
@@ -175,9 +212,75 @@
   .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
   .dot{width:8px;height:8px;border-radius:50%;}
   .day-event-chip{font-size:.6rem;font-weight:700;padding:2px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;}
+  .meal-dot{font-size:.7rem;margin-top:4px;text-align:center;color:var(--muted);}
+
+  /* PANELS */
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px;}
   .panel-title{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:1.5px;color:var(--muted);
     border-bottom:1px solid var(--border);padding-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+
+  /* SELECTED DAY */
+  .selected-day-panel{grid-column:1/2;animation:fadeIn .3s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .selected-events-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;}
+  .sel-event{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:10px;border-left:3px solid;}
+  .sel-event.mine{background:#1e2a1e;}
+  .sel-event-time{font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;min-width:56px;}
+  .sel-event-title{font-size:.88rem;font-weight:600;}
+  .sel-event-person{font-size:.72rem;}
+  .sel-recurring-badge{font-size:.6rem;padding:1px 5px;border-radius:4px;background:rgba(79,195,247,.15);color:#4fc3f7;margin-left:4px;}
+  .delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;}
+  .delete-btn:hover{color:#ff6b6b;}
+  .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;}
+
+  /* CHORES */
+  .chores-panel{grid-column:2/3;}
+  .chore-item{background:var(--surface2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;transition:background .2s;}
+  .chore-item:hover{background:#2d333b;}
+  .chore-top{display:flex;align-items:center;gap:10px;}
+  .chore-icon{font-size:1.2rem;flex-shrink:0;}
+  .chore-info{flex:1;}
+  .chore-name{font-size:.88rem;font-weight:700;}
+  .chore-freq{font-size:.68rem;color:var(--muted);}
+  .chore-actions{display:flex;align-items:center;gap:6px;}
+  .chore-add-btn{background:rgba(6,214,160,.15);border:1px solid #06d6a0;color:#06d6a0;border-radius:8px;
+    padding:4px 12px;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .chore-add-btn:hover{background:rgba(6,214,160,.25);}
+  .chore-counters{display:flex;flex-wrap:wrap;gap:6px;}
+  .counter-chip{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:4px;}
+  .counter-x{cursor:pointer;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;
+    background:rgba(255,107,107,.15);color:#ff6b6b;margin-left:4px;white-space:nowrap;}
+  .counter-x:hover{background:rgba(255,107,107,.3);}
+  .person-filter-chip{font-size:.72rem;font-weight:700;padding:5px 13px;border-radius:20px;cursor:pointer;
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .2s;white-space:nowrap;}
+  .person-filter-chip:hover{border-color:var(--muted);color:var(--text);}
+  .chore-deadline{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:3px;display:inline-block;}
+  .chore-deadline.overdue{background:rgba(255,107,107,.15);color:#ff6b6b;}
+  .chore-deadline.ok{background:rgba(6,214,160,.1);color:#06d6a0;}
+  .chore-history-btn{background:none;border:none;color:var(--muted);font-size:.7rem;cursor:pointer;text-decoration:underline;align-self:flex-start;}
+  .chore-history-btn:hover{color:var(--text);}
+  .chore-points-badge{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:8px;background:rgba(255,209,102,.15);color:#ffd166;margin-left:4px;}
+  .chore-assigned-badge{font-size:.62rem;color:var(--muted);margin-top:2px;}
+
+  /* HISTORY */
+  .history-entry{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
+  .history-date{font-size:.72rem;color:var(--muted);min-width:70px;}
+  .history-chips{display:flex;flex-wrap:wrap;gap:4px;flex:1;}
+  .history-chip{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;}
+
+  /* MEALS */
+  .meals-panel{grid-column:3/4;}
+  .meal-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .meal-row:last-child{border-bottom:none;}
+  .meal-day{font-size:.75rem;font-weight:700;min-width:36px;color:var(--muted);}
+  .meal-day.today{color:#ffd166;}
+  .meal-input{flex:1;background:transparent;border:none;color:var(--text);font-family:'Nunito',sans-serif;
+    font-size:.82rem;outline:none;padding:2px 4px;}
+  .meal-input::placeholder{color:var(--muted);}
+  .meal-edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 4px;border-radius:4px;}
+  .meal-edit-btn:hover{color:#06d6a0;}
+
+  /* MEMBERS */
   .members-panel{grid-column:1/3;}
   .members-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .member-card{background:var(--surface2);border-radius:12px;padding:14px;border-left:4px solid;transition:transform .2s;}
@@ -198,46 +301,32 @@
   .event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
   .event-text{color:var(--muted);}
   .event-time{color:var(--text);font-weight:600;white-space:nowrap;}
+  .member-pts{font-size:.72rem;font-weight:700;color:#ffd166;margin-top:4px;}
 
-  /* ── CHORES ── */
-  .chores-panel{grid-column:3/4;}
-  .chore-item{background:var(--surface2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;transition:background .2s;}
-  .chore-item:hover{background:#2d333b;}
-  .chore-top{display:flex;align-items:center;gap:10px;}
-  .chore-icon{font-size:1.2rem;flex-shrink:0;}
-  .chore-info{flex:1;}
-  .chore-name{font-size:.88rem;font-weight:700;}
-  .chore-freq{font-size:.68rem;color:var(--muted);}
-  .chore-actions{display:flex;align-items:center;gap:6px;}
-  .chore-add-btn{background:rgba(6,214,160,.15);border:1px solid #06d6a0;color:#06d6a0;border-radius:8px;
-    padding:4px 12px;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
-  .chore-add-btn:hover{background:rgba(6,214,160,.25);}
-  .chore-counters{display:flex;flex-wrap:wrap;gap:6px;}
-  .counter-chip{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:4px;}
-  .counter-x{cursor:pointer;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;
-    background:rgba(255,107,107,.15);color:#ff6b6b;margin-left:4px;white-space:nowrap;}
-  .counter-x:hover{background:rgba(255,107,107,.3);}
-  /* filter chips */
-  .person-filter-chip{font-size:.72rem;font-weight:700;padding:5px 13px;border-radius:20px;cursor:pointer;
-    background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .2s;white-space:nowrap;}
-  .person-filter-chip:hover{border-color:var(--muted);color:var(--text);}
-  .chore-deadline{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:3px;display:inline-block;}
-  .chore-deadline.overdue{background:rgba(255,107,107,.15);color:#ff6b6b;}
-  .chore-deadline.ok{background:rgba(6,214,160,.1);color:#06d6a0;}
-  .chore-history-btn{background:none;border:none;color:var(--muted);font-size:.7rem;cursor:pointer;text-decoration:underline;align-self:flex-start;}
-  .chore-history-btn:hover{color:var(--text);}
-  .add-chore-row{display:flex;gap:8px;flex-wrap:wrap;}
-  .add-chore-row input{flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-    padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
-  .add-chore-row input:focus{border-color:#06d6a0;}
+  /* POINTS PANEL */
+  .points-panel{grid-column:3/4;}
+  .tab-btns{display:flex;gap:4px;background:var(--surface2);border-radius:10px;padding:3px;}
+  .tab-btn{flex:1;background:none;border:none;color:var(--muted);font-family:'Nunito',sans-serif;
+    font-size:.75rem;font-weight:700;padding:6px 8px;border-radius:8px;cursor:pointer;transition:all .2s;}
+  .tab-btn.active{background:var(--surface);color:var(--text);}
+  .pts-person{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface2);border-radius:10px;}
+  .pts-name{font-size:.85rem;font-weight:700;}
+  .pts-val{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:1px;color:#ffd166;}
+  .reward-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:10px;}
+  .reward-icon{font-size:1.3rem;}
+  .reward-name{font-size:.85rem;font-weight:700;flex:1;}
+  .reward-cost{font-size:.75rem;font-weight:700;color:#ffd166;white-space:nowrap;}
+  .reward-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;}
+  .reward-del:hover{color:#ff6b6b;}
+  .allowance-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:10px;}
+  .allowance-name{font-size:.85rem;font-weight:700;flex:1;}
+  .allowance-val{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:#06d6a0;}
+  .allowance-btns{display:flex;gap:4px;}
+  .allow-btn{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);
+    font-family:'Nunito',sans-serif;font-size:.75rem;font-weight:700;padding:3px 8px;cursor:pointer;transition:all .2s;}
+  .allow-btn:hover{border-color:#06d6a0;}
 
-  /* ── CHORE HISTORY ── */
-  .history-entry{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
-  .history-date{font-size:.72rem;color:var(--muted);min-width:70px;}
-  .history-chips{display:flex;flex-wrap:wrap;gap:4px;flex:1;}
-  .history-chip{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;}
-
-  /* ── GROCERY ── */
+  /* GROCERY */
   .grocery-panel{grid-column:3/4;}
   .grocery-categories{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
   .cat-chip{font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:20px;cursor:pointer;
@@ -255,20 +344,7 @@
     padding:7px 10px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;}
   .add-grocery-row input:focus{border-color:#ffd166;}
 
-  /* ── SELECTED DAY ── */
-  .selected-day-panel{grid-column:1/3;animation:fadeIn .3s ease;}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  .selected-events-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;}
-  .sel-event{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:10px;border-left:3px solid;}
-  .sel-event.mine{background:#1e2a1e;}
-  .sel-event-time{font-size:.78rem;font-weight:700;color:var(--muted);white-space:nowrap;min-width:60px;}
-  .sel-event-title{font-size:.9rem;font-weight:600;}
-  .sel-event-person{font-size:.72rem;}
-  .delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;}
-  .delete-btn:hover{color:#ff6b6b;}
-  .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;}
-
-  /* ── HA ── */
+  /* HA */
   .ha-panel{grid-column:1/3;}
   .ha-setup{text-align:center;padding:16px;color:var(--muted);font-size:.85rem;}
   .ha-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
@@ -284,26 +360,31 @@
   .ha-dot{width:7px;height:7px;border-radius:50%;background:#8b949e;}
   .ha-dot.connected{background:#06d6a0;}.ha-dot.error{background:#ff6b6b;}
 
-  /* ── TOAST ── */
+  /* TOAST */
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
     background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 20px;
     font-size:.85rem;font-weight:600;transition:transform .3s;z-index:600;white-space:nowrap;}
   .toast.show{transform:translateX(-50%) translateY(0);}
 
-  /* ── FIREBASE SETUP BANNER ── */
+  /* FIREBASE BANNER */
   #fb-setup-banner{background:rgba(255,140,66,.1);border:1px solid var(--bradford);border-radius:12px;
     padding:14px 18px;margin:16px 32px 0;font-size:.85rem;display:none;}
   #fb-setup-banner.visible{display:block;}
   #fb-setup-banner a{color:var(--bradford);font-weight:700;}
 
-  @media(max-width:900px){
+  /* RESPONSIVE */
+  @media(max-width:1000px){
     .main{grid-template-columns:1fr 1fr;padding:16px;}
-    .members-panel,.chores-panel,.grocery-panel,.ha-panel,.selected-day-panel{grid-column:1/-1;}
+    .selected-day-panel{grid-column:1/2;}
+    .chores-panel{grid-column:2/3;}
+    .meals-panel,.members-panel,.points-panel,.grocery-panel,.ha-panel{grid-column:1/-1;}
     .day-event-chip{display:none;}
     #my-day-banner,#fb-setup-banner{margin-left:16px;margin-right:16px;}
+    #announcements-bar{padding:10px 16px;}
   }
-  @media(max-width:600px){
+  @media(max-width:640px){
     .main{grid-template-columns:1fr;padding:12px;}
+    .selected-day-panel,.chores-panel,.meals-panel{grid-column:1/-1;}
     .members-grid{grid-template-columns:1fr;}
     .member-picker{grid-template-columns:1fr 1fr;}
     .week-strip{gap:3px;}
@@ -311,6 +392,7 @@
     .day-name{font-size:.7rem;}.day-num{font-size:1rem;}
     header{padding:14px 16px;}.logo{font-size:1.5rem;}
     #my-day-banner,#fb-setup-banner{margin-left:12px;margin-right:12px;}
+    #announcements-bar{padding:8px 12px;}
   }
   ::-webkit-scrollbar{width:4px;}
   ::-webkit-scrollbar-track{background:transparent;}
@@ -326,10 +408,9 @@
   <div class="splash-msg" id="splash-msg">Connecting...</div>
 </div>
 
-<!-- FIREBASE SETUP BANNER -->
 <div id="fb-setup-banner">
-  ⚠️ <strong>Firebase not configured yet.</strong> The dashboard is running in offline mode — changes won't sync between devices.
-  <a href="#" onclick="showFirebaseHelp()"> See setup instructions →</a>
+  ⚠️ <strong>Firebase not configured.</strong> Running in offline mode.
+  <a href="#" onclick="showFirebaseHelp()"> Setup instructions →</a>
 </div>
 
 <!-- WELCOME -->
@@ -388,6 +469,19 @@
         <option value="personal">Personal</option>
       </select>
     </div>
+    <div class="form-group"><label>Recurring</label>
+      <select id="evt-recurring" onchange="toggleRecurringEnd()">
+        <option value="none">Does not repeat</option>
+        <option value="daily">Every day</option>
+        <option value="weekdays">Weekdays (Mon–Fri)</option>
+        <option value="weekends">Weekends (Sat–Sun)</option>
+        <option value="weekly">Weekly (same day)</option>
+      </select>
+    </div>
+    <div class="form-group" id="recurring-end-group" style="display:none;">
+      <label>Repeat Until (optional)</label>
+      <input type="date" id="evt-recurring-end">
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEvent()">Save Event</button>
@@ -402,8 +496,13 @@
     <div class="form-group"><label>Chore Name</label>
       <input type="text" id="new-chore-name" placeholder="e.g. Let dogs out">
     </div>
-    <div class="form-group"><label>Icon (emoji)</label>
-      <input type="text" id="new-chore-icon" placeholder="🐕" maxlength="2">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label>Icon (emoji)</label>
+        <input type="text" id="new-chore-icon" placeholder="🐕" maxlength="2">
+      </div>
+      <div class="form-group"><label>Points per completion</label>
+        <input type="number" id="new-chore-points" value="1" min="0" max="100">
+      </div>
     </div>
     <div class="form-group"><label>How many times per day?</label>
       <select id="new-chore-freq">
@@ -418,6 +517,9 @@
       <div class="form-group"><label>Scheduled Time (optional)</label><input type="time" id="new-chore-time"></div>
       <div class="form-group"><label>Due By (optional)</label><input type="time" id="new-chore-due"></div>
     </div>
+    <div class="form-group"><label>Assign To (leave blank = anyone)</label>
+      <div class="assign-grid" id="chore-assign-grid"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeAddChoreModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveNewChore()">Add Chore</button>
@@ -431,6 +533,63 @@
     <h2 id="history-title">History</h2>
     <div id="history-content" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;"></div>
     <div class="modal-actions"><button class="btn" onclick="closeHistoryModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- ADD ANNOUNCEMENT MODAL -->
+<div class="modal-backdrop" id="annc-modal" onclick="if(event.target===this)closeAnncModal()">
+  <div class="modal">
+    <h2>📢 Add Announcement</h2>
+    <div class="form-group"><label>Emoji</label>
+      <input type="text" id="annc-emoji" placeholder="📢" maxlength="2" value="📢">
+    </div>
+    <div class="form-group"><label>Message</label>
+      <input type="text" id="annc-text" placeholder="e.g. Dinner at 6pm tonight!">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAnncModal()">Cancel</button>
+      <button class="btn btn-yellow" onclick="saveAnnouncement()">Post</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD COUNTDOWN MODAL -->
+<div class="modal-backdrop" id="countdown-modal" onclick="if(event.target===this)closeCountdownModal()">
+  <div class="modal">
+    <h2>⏳ Add Countdown</h2>
+    <div class="form-group"><label>Icon</label>
+      <input type="text" id="cd-icon" placeholder="🎄" maxlength="2" value="⏳">
+    </div>
+    <div class="form-group"><label>Label</label>
+      <input type="text" id="cd-label" placeholder="e.g. Christmas">
+    </div>
+    <div class="form-group"><label>Target Date</label>
+      <input type="date" id="cd-date">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeCountdownModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCountdown()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD REWARD MODAL -->
+<div class="modal-backdrop" id="reward-modal" onclick="if(event.target===this)closeRewardModal()">
+  <div class="modal">
+    <h2>🏆 Add Reward</h2>
+    <div class="form-group"><label>Icon</label>
+      <input type="text" id="rwd-icon" placeholder="🎮" maxlength="2" value="🏆">
+    </div>
+    <div class="form-group"><label>Reward Name</label>
+      <input type="text" id="rwd-name" placeholder="e.g. Extra screen time">
+    </div>
+    <div class="form-group"><label>Points Cost</label>
+      <input type="number" id="rwd-cost" value="10" min="1">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeRewardModal()">Cancel</button>
+      <button class="btn btn-yellow" onclick="saveReward()">Add Reward</button>
+    </div>
   </div>
 </div>
 
@@ -482,10 +641,14 @@
         </div>
       </div>
       <button class="notif-btn" id="notif-btn" onclick="requestNotifications()">🔔 Alerts</button>
-      <button class="btn btn-primary" onclick="openModal()">+ Add Event</button>
+      <button class="btn btn-primary" onclick="openModal()">+ Event</button>
     </div>
   </header>
 
+  <!-- ANNOUNCEMENTS BAR -->
+  <div id="announcements-bar"></div>
+
+  <!-- MY DAY -->
   <div id="my-day-banner">
     <div class="mdb-avatar" id="mdb-avatar"></div>
     <div style="flex:1">
@@ -496,14 +659,20 @@
   </div>
 
   <div class="main">
+    <!-- Filter chips -->
     <div id="filter-chips" style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;"></div>
+
+    <!-- Countdown strip -->
+    <div id="countdown-strip"></div>
+
+    <!-- Week strip -->
     <div class="week-strip" id="week-strip"></div>
 
     <!-- Selected Day -->
     <div class="panel selected-day-panel">
       <div class="panel-title">
         <span id="selected-day-title">Today's Schedule</span>
-        <span style="font-size:.75rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Click a day above</span>
+        <span style="font-size:.75rem;color:var(--muted);font-family:'Nunito',sans-serif;font-weight:600;">Click a day ↑</span>
       </div>
       <div class="selected-events-list" id="selected-events-list"></div>
     </div>
@@ -511,16 +680,36 @@
     <!-- Chores -->
     <div class="panel chores-panel">
       <div class="panel-title">
-        <span>🏠 Chores — Today</span>
+        <span>🏠 Chores</span>
         <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openAddChoreModal()">+ Add</button>
       </div>
       <div id="chores-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- Meals -->
+    <div class="panel meals-panel">
+      <div class="panel-title">
+        <span>🍽️ Meal Plan</span>
+        <span style="font-size:.72rem;color:var(--muted);font-family:'Nunito',sans-serif;">Dinner</span>
+      </div>
+      <div id="meals-list" style="display:flex;flex-direction:column;"></div>
     </div>
 
     <!-- Members -->
     <div class="panel members-panel">
       <div class="panel-title"><span>👨‍👩‍👧‍👦 Family Status</span></div>
       <div class="members-grid" id="members-grid"></div>
+    </div>
+
+    <!-- Points / Rewards / Allowance -->
+    <div class="panel points-panel">
+      <div class="panel-title"><span>⭐ Points</span></div>
+      <div class="tab-btns">
+        <button class="tab-btn active" onclick="setPointsTab('points',this)">Points</button>
+        <button class="tab-btn" onclick="setPointsTab('rewards',this)">Rewards</button>
+        <button class="tab-btn" onclick="setPointsTab('allowance',this)">Allowance</button>
+      </div>
+      <div id="points-tab-content"></div>
     </div>
 
     <!-- Grocery -->
@@ -530,7 +719,7 @@
         <span id="grocery-count" style="font-size:.8rem;font-family:'Nunito',sans-serif;font-weight:600;color:var(--muted)"></span>
       </div>
       <div class="grocery-categories" id="grocery-categories"></div>
-      <div id="grocery-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+      <div id="grocery-list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
       <div class="add-grocery-row">
         <input type="text" id="grocery-input" placeholder="Add item..." onkeydown="if(event.key==='Enter')addGroceryItem()">
         <select id="grocery-cat" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:.82rem;outline:none;cursor:pointer;">
@@ -585,16 +774,47 @@ function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 let currentUser=JSON.parse(sessionStorage.getItem('young_user')||'null');
 let fbReady=false;
 
-// Local state (mirrors Firebase)
+// ── STATE ──
 let events={};
 let chores={};
 let groceries={};
 let choreLog={};
+let meals={};
+let announcements={};
+let countdowns={};
+let points={};
+let rewards={};
+
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
 let filterMember=null;
+let currentPointsTab='points';
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
+
+// Per-person allowance in localStorage (offline-friendly)
+function getAllowance(person){
+  const a=JSON.parse(localStorage.getItem('young_allowance')||'{}');
+  return a[person]||0;
+}
+function setAllowance(person,val){
+  const a=JSON.parse(localStorage.getItem('young_allowance')||'{}');
+  a[person]=val;
+  localStorage.setItem('young_allowance',JSON.stringify(a));
+}
+
+// ── RECURRING HELPER ──
+function eventOccursOn(evt,dateStr){
+  if(!evt.recurring||evt.recurring==='none') return evt.date===dateStr;
+  if(dateStr<evt.date) return false;
+  if(evt.recurringEnd&&dateStr>evt.recurringEnd) return false;
+  const dow=new Date(dateStr+'T12:00:00').getDay();
+  if(evt.recurring==='daily') return true;
+  if(evt.recurring==='weekly') return new Date(evt.date+'T12:00:00').getDay()===dow;
+  if(evt.recurring==='weekdays') return dow>=1&&dow<=5;
+  if(evt.recurring==='weekends') return dow===0||dow===6;
+  return evt.date===dateStr;
+}
 
 // ── FIREBASE INIT ──
 function waitForFirebase(){
@@ -602,7 +822,6 @@ function waitForFirebase(){
   else{document.addEventListener('fb-ready',onFirebaseReady);}
   setTimeout(()=>{
     if(!fbReady){
-      // Firebase config not filled in — run in offline mode
       document.getElementById('splash').classList.add('hidden');
       document.getElementById('fb-setup-banner').classList.add('visible');
       setSyncStatus('offline');
@@ -613,32 +832,32 @@ function waitForFirebase(){
 
 function onFirebaseReady(){
   fbReady=true;
-  const cfg=document.querySelector('script[type="module"]').textContent;
-  if(cfg.includes('REPLACE_WITH_YOUR_API_KEY')){
-    // Not configured
-    document.getElementById('splash').classList.add('hidden');
-    document.getElementById('fb-setup-banner').classList.add('visible');
-    setSyncStatus('offline');
-    showWelcome();
-    return;
-  }
   document.getElementById('splash-msg').textContent='Syncing family data...';
   setSyncStatus('connecting');
   subscribeAll();
 }
 
 function subscribeAll(){
-  const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef}=window._fb;
+  const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef,
+         mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef}=window._fb;
   let loaded=0;let booted=false;
-  const check=()=>{if(++loaded>=4&&!booted){booted=true;
+  const TOTAL=10;
+  const check=()=>{if(++loaded>=TOTAL&&!booted){booted=true;
     document.getElementById('splash').classList.add('hidden');
     setSyncStatus('live');
     showWelcome();
   }};
-  onValue(eventsRef(),   snap=>{events   =snap.val()||{};renderAll();check();});
-  onValue(choresRef(),   snap=>{chores   =snap.val()||{};renderChores();check();});
-  onValue(groceriesRef(),snap=>{groceries=snap.val()||{};renderGroceries();check();});
-  onValue(choreLogRef(), snap=>{choreLog =snap.val()||{};renderChores();check();});
+  onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();check();});
+  onValue(choresRef(),        snap=>{chores       =snap.val()||{};renderChores();check();});
+  onValue(groceriesRef(),     snap=>{groceries    =snap.val()||{};renderGroceries();check();});
+  onValue(choreLogRef(),      snap=>{choreLog     =snap.val()||{};renderChores();check();});
+  onValue(mealsRef(),         snap=>{meals        =snap.val()||{};renderMeals();renderWeek();check();});
+  onValue(announcementsRef(), snap=>{announcements=snap.val()||{};renderAnnouncements();check();});
+  onValue(countdownsRef(),    snap=>{countdowns   =snap.val()||{};renderCountdownStrip();check();});
+  onValue(pointsRef(),        snap=>{points       =snap.val()||{};renderPointsTab();renderMembers();check();});
+  onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();check();});
+  // settings is 10th
+  onValue(window._fb.ref(window._fb.db,'settings'), snap=>{check();});
 }
 
 function setSyncStatus(status){
@@ -649,32 +868,39 @@ function setSyncStatus(status){
   txt.textContent=status==='live'?'live':status==='offline'?'offline':status==='error'?'error':'connecting';
 }
 
-// ── LOCAL FALLBACK (offline mode) ──
+// ── LOCAL FALLBACK ──
 function loadLocal(){
   events   =JSON.parse(localStorage.getItem('young_events')||'{}');
   chores   =JSON.parse(localStorage.getItem('young_chores')||'{}');
   groceries=JSON.parse(localStorage.getItem('young_groceries')||'{}');
   choreLog =JSON.parse(localStorage.getItem('young_chorelog')||'{}');
+  meals    =JSON.parse(localStorage.getItem('young_meals')||'{}');
+  announcements=JSON.parse(localStorage.getItem('young_annc')||'{}');
+  countdowns=JSON.parse(localStorage.getItem('young_cds')||'{}');
+  points   =JSON.parse(localStorage.getItem('young_points')||'{}');
+  rewards  =JSON.parse(localStorage.getItem('young_rewards')||'{}');
 }
 function saveLocal(){
   localStorage.setItem('young_events',JSON.stringify(events));
   localStorage.setItem('young_chores',JSON.stringify(chores));
   localStorage.setItem('young_groceries',JSON.stringify(groceries));
   localStorage.setItem('young_chorelog',JSON.stringify(choreLog));
+  localStorage.setItem('young_meals',JSON.stringify(meals));
+  localStorage.setItem('young_annc',JSON.stringify(announcements));
+  localStorage.setItem('young_cds',JSON.stringify(countdowns));
+  localStorage.setItem('young_points',JSON.stringify(points));
+  localStorage.setItem('young_rewards',JSON.stringify(rewards));
 }
 
 // ── DB HELPERS ──
 async function dbSet(path,value){
-  if(fbReady&&window._fb){
-    const {ref,set,db}=window._fb;
-    await set(ref(db,path),value);
-  } else {saveLocal();}
+  if(fbReady&&window._fb){const {ref,set,db}=window._fb;await set(ref(db,path),value);}
+  else{saveLocal();}
 }
 async function dbPush(path,value){
   if(fbReady&&window._fb){
     const {ref,push,db}=window._fb;
-    const r=await push(ref(db,path),value);
-    return r.key;
+    const r=await push(ref(db,path),value);return r.key;
   } else {
     const key='local_'+Date.now();
     if(path.startsWith('events'))events[key]=value;
@@ -686,31 +912,26 @@ async function dbPush(path,value){
       if(!choreLog[date][choreId])choreLog[date][choreId]={};
       choreLog[date][choreId][key]=value;
     }
+    else if(path.startsWith('announcements'))announcements[key]=value;
+    else if(path.startsWith('countdowns'))countdowns[key]=value;
+    else if(path.startsWith('rewards'))rewards[key]=value;
     saveLocal();return key;
   }
 }
 async function dbRemove(path){
-  if(fbReady&&window._fb){
-    const {ref,remove,db}=window._fb;
-    await remove(ref(db,path));
-  } else {saveLocal();}
+  if(fbReady&&window._fb){const {ref,remove,db}=window._fb;await remove(ref(db,path));}
+  else{saveLocal();}
 }
 async function dbUpdate(path,value){
-  if(fbReady&&window._fb){
-    const {ref,update,db}=window._fb;
-    await update(ref(db,path),value);
-  } else {saveLocal();}
+  if(fbReady&&window._fb){const {ref,update,db}=window._fb;await update(ref(db,path),value);}
+  else{saveLocal();}
 }
 
 // ── WELCOME & USER SELECTION ──
 function showWelcome(){
   buildPicker();
-  if(currentUser){
-    startApp();
-  } else {
-    const ws=document.getElementById('welcome-screen');
-    ws.style.display='flex';
-  }
+  if(currentUser){startApp();}
+  else{const ws=document.getElementById('welcome-screen');ws.style.display='flex';}
 }
 
 function buildPicker(){
@@ -731,7 +952,6 @@ function selectUser(name,emoji,color,cls){
   const ws=document.getElementById('welcome-screen');
   ws.classList.add('hidden');
   setTimeout(()=>ws.style.display='none',500);
-  // Skip What's New when switching mid-session; only show on cold login
   if(name!=='Guest'&&!window._switching){showWhatsNew(name);}
   else{window._switching=false;startApp();}
 }
@@ -741,7 +961,6 @@ function switchUser(){
   sessionStorage.removeItem('young_user');
   currentUser=null;
   document.getElementById('app').classList.remove('visible');
-  // Close any open modals before showing welcome
   document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));
   const ws=document.getElementById('welcome-screen');
   ws.style.display='flex';ws.classList.remove('hidden');
@@ -758,11 +977,11 @@ function showWhatsNew(name){
 }
 async function saveWhatsNew(){
   const title=document.getElementById('wn-event-title').value.trim();
-  const date =document.getElementById('wn-event-date').value;
-  const time =document.getElementById('wn-event-time').value;
+  const date=document.getElementById('wn-event-date').value;
+  const time=document.getElementById('wn-event-time').value;
   const groceryText=document.getElementById('wn-groceries').value.trim();
   if(title&&date){
-    await dbPush('events',{person:currentUser.name,title,date,time,type:'personal',created:Date.now()});
+    await dbPush('events',{person:currentUser.name,title,date,time,type:'personal',recurring:'none',created:Date.now()});
     showToast('✅ Event added!');
   }
   if(groceryText){
@@ -788,7 +1007,7 @@ function startApp(){
   renderAll();
   fetchWeather(36.3348,-92.3849,false);
   updateNotifBtn(Notification.permission||'default');
-  if(haConfig)refreshHA(); else renderHASetup();
+  if(haConfig)refreshHA();else renderHASetup();
   checkDailyReset();
   if(currentUser.name!=='Guest')
     setTimeout(()=>{if(Notification.permission==='default')showToast(`👋 Hi ${currentUser.name}! Tap 🔔 Alerts for reminders.`,5000);},1500);
@@ -797,13 +1016,18 @@ function startApp(){
 function renderAll(){
   renderMyDayBanner();
   renderFilterChips();
+  renderAnnouncements();
+  renderCountdownStrip();
   renderWeek();
   renderSelectedDay();
   renderMembers();
   renderChores();
+  renderMeals();
   renderGroceries();
+  renderPointsTab();
 }
 
+// ── FILTER CHIPS ──
 function renderFilterChips(){
   const el=document.getElementById('filter-chips');if(!el)return;
   const all=[{key:null,label:'All 👨‍👩‍👧‍👦',color:'#8b949e'},...MEMBERS.map(m=>({key:m.key,label:m.emoji+' '+m.key,color:m.color}))];
@@ -822,7 +1046,6 @@ async function checkDailyReset(){
   const snap=await get(ref(db,'settings/lastReset'));
   const lastReset=snap.val()||'';
   if(lastReset!==todayStr){
-    // Archive yesterday's log already stored in choreLog, then reset counts
     await dbSet('settings/lastReset',todayStr);
     showToast('🌅 New day — chores have been reset!',4000);
   }
@@ -835,20 +1058,98 @@ function renderMyDayBanner(){
   banner.style.display='flex';
   banner.style.background=`color-mix(in srgb,${currentUser.color} 8%,var(--surface))`;
   banner.style.borderColor=`color-mix(in srgb,${currentUser.color} 30%,var(--border))`;
-  const myEvts=Object.values(events).filter(e=>e.person===currentUser.name&&e.date===todayStr)
+  const myEvts=Object.values(events).filter(e=>eventOccursOn(e,todayStr)&&e.person===currentUser.name)
     .sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const h=new Date().getHours();
+  const pts=points[currentUser.name]?.total||0;
   document.getElementById('mdb-avatar').textContent=currentUser.emoji;
   document.getElementById('mdb-greeting').textContent=`${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, ${currentUser.name}! ${h<12?'☀️':h<17?'🌤️':'🌙'}`;
-  document.getElementById('mdb-summary').textContent=myEvts.length?`You have ${myEvts.length} event${myEvts.length>1?'s':''} today:`:'Free day — enjoy! 🎉';
+  document.getElementById('mdb-summary').textContent=myEvts.length?`You have ${myEvts.length} event${myEvts.length>1?'s':''} today — ⭐ ${pts} pts`:`Free day — enjoy! 🎉 · ⭐ ${pts} pts`;
   document.getElementById('mdb-events').innerHTML=myEvts.map(e=>
-    `<div class="mdb-chip" style="background:${currentUser.color}22;color:${currentUser.color}">${e.time?formatTime(e.time)+' · ':''}${e.title}</div>`).join('');
+    `<div class="mdb-chip" style="background:${currentUser.color}22;color:${currentUser.color}">${e.time?formatTime(e.time)+' · ':''}${e.title}${e.recurring&&e.recurring!=='none'?' 🔁':''}</div>`).join('');
 }
 
 // ── DATE ──
 function updateDateDisplay(){
   document.getElementById('date-display').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 }
+
+// ── ANNOUNCEMENTS ──
+function renderAnnouncements(){
+  const bar=document.getElementById('announcements-bar');
+  const arr=Object.entries(announcements).sort(([,a],[,b])=>b.created-a.created);
+  bar.innerHTML='';
+  arr.forEach(([id,a])=>{
+    const item=document.createElement('div');
+    item.className='annc-item';
+    item.innerHTML=`<span style="font-size:1rem">${a.emoji||'📢'}</span>
+      <span class="annc-text">${a.text}</span>
+      <span class="annc-author">— ${a.author}</span>
+      <button class="annc-close" onclick="deleteAnnouncement('${id}')">✕</button>`;
+    bar.appendChild(item);
+  });
+  const addBtn=document.createElement('div');
+  addBtn.className='annc-add-btn';
+  addBtn.textContent='+ Announcement';
+  addBtn.onclick=openAnncModal;
+  bar.appendChild(addBtn);
+}
+function openAnncModal(){
+  document.getElementById('annc-emoji').value='📢';
+  document.getElementById('annc-text').value='';
+  document.getElementById('annc-modal').classList.add('open');
+}
+function closeAnncModal(){document.getElementById('annc-modal').classList.remove('open');}
+async function saveAnnouncement(){
+  const emoji=document.getElementById('annc-emoji').value.trim()||'📢';
+  const text=document.getElementById('annc-text').value.trim();
+  if(!text){showToast('Please enter a message');return;}
+  await dbPush('announcements',{emoji,text,author:currentUser?.name||'Guest',created:Date.now()});
+  closeAnncModal();showToast('📢 Posted!');
+}
+async function deleteAnnouncement(id){await dbRemove(`announcements/${id}`);}
+
+// ── COUNTDOWN STRIP ──
+function renderCountdownStrip(){
+  const strip=document.getElementById('countdown-strip');strip.innerHTML='';
+  const arr=Object.entries(countdowns).sort(([,a],[,b])=>a.targetDate.localeCompare(b.targetDate));
+  arr.forEach(([id,cd])=>{
+    const target=new Date(cd.targetDate+'T12:00:00');
+    const diff=Math.ceil((target-today)/(1000*60*60*24));
+    const chip=document.createElement('div');
+    chip.className='countdown-chip';
+    chip.innerHTML=`<span class="countdown-icon">${cd.icon||'⏳'}</span>
+      <div><div class="countdown-label">${cd.label}</div>
+        <div style="display:flex;align-items:baseline;gap:3px;">
+          <span class="countdown-days">${diff<0?'Past':diff===0?'Today!':diff}</span>
+          ${diff>0?`<span class="countdown-unit">days</span>`:''}
+        </div>
+      </div>
+      <button class="countdown-del" onclick="deleteCountdown('${id}')">✕</button>`;
+    strip.appendChild(chip);
+  });
+  const addBtn=document.createElement('div');
+  addBtn.className='countdown-add-btn';
+  addBtn.innerHTML='<span>⏳</span>+ Countdown';
+  addBtn.onclick=openCountdownModal;
+  strip.appendChild(addBtn);
+}
+function openCountdownModal(){
+  document.getElementById('cd-icon').value='⏳';
+  document.getElementById('cd-label').value='';
+  document.getElementById('cd-date').value='';
+  document.getElementById('countdown-modal').classList.add('open');
+}
+function closeCountdownModal(){document.getElementById('countdown-modal').classList.remove('open');}
+async function saveCountdown(){
+  const icon=document.getElementById('cd-icon').value.trim()||'⏳';
+  const label=document.getElementById('cd-label').value.trim();
+  const targetDate=document.getElementById('cd-date').value;
+  if(!label||!targetDate){showToast('Please fill in label and date');return;}
+  await dbPush('countdowns',{icon,label,targetDate,created:Date.now()});
+  closeCountdownModal();showToast('⏳ Countdown added!');
+}
+async function deleteCountdown(id){await dbRemove(`countdowns/${id}`);}
 
 // ── WEEK ──
 function renderWeek(){
@@ -858,14 +1159,16 @@ function renderWeek(){
   const evList=Object.values(events).filter(e=>!filterMember||e.person===filterMember);
   for(let i=0;i<7;i++){
     const d=addDays(start,i);const ds=fmtDate(d);
-    const dayEvts=evList.filter(e=>e.date===ds);
+    const dayEvts=evList.filter(e=>eventOccursOn(e,ds));
+    const dinner=meals[ds]?.dinner||'';
     const col=document.createElement('div');
     col.className='day-col'+(ds===todayStr?' today':'')+(ds===selectedDate?' selected':'');
     col.onclick=()=>{selectedDate=ds;renderWeek();renderSelectedDay();renderMembers();};
     col.innerHTML=`<div class="day-name">${dayNames[d.getDay()]}</div>
       <div class="day-num">${d.getDate()}</div>
       <div class="day-dots">${[...new Set(dayEvts.map(e=>e.person))].map(p=>`<div class="dot" style="background:${MEMBER_HEX[p]||'#888'}" title="${p}"></div>`).join('')}</div>
-      ${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${(MEMBER_HEX[e.person]||'#888')}22;color:${MEMBER_HEX[e.person]||'#888'}">${e.title}</div>`).join('')}`;
+      ${dayEvts.slice(0,2).map(e=>`<div class="day-event-chip" style="background:${(MEMBER_HEX[e.person]||'#888')}22;color:${MEMBER_HEX[e.person]||'#888'}">${e.title}</div>`).join('')}
+      ${dinner?`<div class="meal-dot">🍽️</div>`:''}`;
     strip.appendChild(col);
   }
 }
@@ -877,34 +1180,34 @@ function renderSelectedDay(){
   const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('selected-day-title').textContent=`${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
   const dayEvts=Object.entries(events)
-    .filter(([,e])=>e.date===selectedDate&&(!filterMember||e.person===filterMember))
+    .filter(([,e])=>eventOccursOn(e,selectedDate)&&(!filterMember||e.person===filterMember))
     .sort(([,a],[,b])=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const list=document.getElementById('selected-events-list');
   if(!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
   list.innerHTML=dayEvts.map(([id,e])=>{
     const isMe=currentUser&&e.person===currentUser.name;
+    const isRecurring=e.recurring&&e.recurring!=='none';
     return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}">
       <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
-      <div><div class="sel-event-title">${e.title}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
+      <div style="flex:1"><div class="sel-event-title">${e.title}${isRecurring?'<span class="sel-recurring-badge">🔁</span>':''}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
       <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person} · ${capitalize(e.type)}</div></div>
       <button class="delete-btn" onclick="deleteEvent('${id}')">✕</button></div>`;
   }).join('');
 }
-async function deleteEvent(id){
-  await dbRemove(`events/${id}`);
-}
+async function deleteEvent(id){await dbRemove(`events/${id}`);}
 
 // ── MEMBERS ──
 function renderMembers(){
   const grid=document.getElementById('members-grid');grid.innerHTML='';
   const evList=Object.values(events);
   MEMBERS.forEach((m,i)=>{
-    const dayEvts=evList.filter(e=>e.person===m.key&&e.date===selectedDate);
+    const dayEvts=evList.filter(e=>eventOccursOn(e,selectedDate)&&e.person===m.key);
     const isWork=dayEvts.some(e=>e.type==='work');
     const isAway=dayEvts.some(e=>e.type==='travel'||e.type==='away');
     const isMe=currentUser&&m.key===currentUser.name;
     const statusLabel=isAway?'✈️ Away':isWork?'💼 At Work':'🏠 Home';
     const statusCls=isAway?'status-away':isWork?'status-work':'status-home';
+    const pts=points[m.key]?.total||0;
     const card=document.createElement('div');
     card.className=`member-card ${m.cls}`;
     if(i===4)card.style.gridColumn='1/-1';
@@ -913,293 +1216,4 @@ function renderMembers(){
       <div class="member-name">${m.emoji} ${m.key}${isMe?'<span class="me-tag">you</span>':''}</div>
       <div class="member-role">${m.role}</div></div>
       <div class="status-badge ${statusCls}">${statusLabel}</div></div>
-      <div class="member-events">${!dayEvts.length
-        ?'<div style="font-size:.75rem;color:var(--muted)">Nothing scheduled</div>'
-        :dayEvts.map(e=>`<div class="event-item"><div class="event-dot" style="background:${m.color}"></div><span class="event-time">${e.time?formatTime(e.time):'All day'}</span><span class="event-text">${e.title}</span></div>`).join('')
-      }</div>`;
-    grid.appendChild(card);
-  });
-}
-
-// ── CHORES ──
-function renderChores(){
-  const list=document.getElementById('chores-list');list.innerHTML='';
-  const choreArr=Object.entries(chores);
-  if(!choreArr.length){
-    list.innerHTML='<div class="empty-state">No chores yet — add some above!</div>';return;
-  }
-  choreArr.forEach(([id,chore])=>{
-    // Get today's log for this chore
-    const todayLog=choreLog[todayStr]?.[id]||{};
-    const counts={}; // {person: count}
-    Object.values(todayLog).forEach(entry=>{
-      counts[entry.person]=(counts[entry.person]||0)+1;
-    });
-    const totalDone=Object.values(counts).reduce((a,b)=>a+b,0);
-    const freq=parseInt(chore.freq)||0;
-    const complete=freq>0&&totalDone>=freq;
-
-    const item=document.createElement('div');
-    item.className='chore-item';
-    const counterChips=Object.entries(counts).map(([person,count])=>{
-      const color=MEMBER_HEX[person]||'#888';
-      return`<div class="counter-chip" style="background:${color}22;color:${color}">
-        ${person} ×${count}
-        ${currentUser&&currentUser.name===person?`<span class="counter-x" onclick="undoChore('${id}','${person}')">undo</span>`:''}
-      </div>`;
-    }).join('');
-
-    const nowTime=new Date().toTimeString().slice(0,5);
-    const isOverdue=!complete&&chore.dueBy&&nowTime>chore.dueBy;
-    item.innerHTML=`
-      <div class="chore-top">
-        <div class="chore-icon">${chore.icon||'✅'}</div>
-        <div class="chore-info">
-          <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">
-            ${chore.name}
-            ${chore.time?`<span style="font-size:.65rem;color:var(--muted);margin-left:6px">⏰ ${formatTime(chore.time)}</span>`:''}
-          </div>
-          <div class="chore-freq">${freq>0?`${totalDone}/${freq} times today`:'Done '+totalDone+' time'+(totalDone!==1?'s':'')+' today'}</div>
-          ${chore.dueBy?`<span class="chore-deadline ${isOverdue?'overdue':'ok'}">${isOverdue?'⚑ Overdue':'⚑ Due'} ${formatTime(chore.dueBy)}</span>`:''}
-        </div>
-        <div class="chore-actions">
-          ${!complete||freq===0?`<button class="chore-add-btn" onclick="logChore('${id}')">I did it ✓</button>`:'<span style="color:#06d6a0;font-size:.8rem;font-weight:700;">✓ Done!</span>'}
-          <button class="delete-btn" onclick="deleteChore('${id}')">✕</button>
-        </div>
-      </div>
-      ${counterChips?`<div class="chore-counters">${counterChips}</div>`:''}
-      <button class="chore-history-btn" onclick="showChoreHistory('${id}','${chore.name}')">View history →</button>`;
-    list.appendChild(item);
-  });
-}
-
-async function logChore(choreId){
-  if(!currentUser||currentUser.name==='Guest'){showToast('Please select yourself first');return;}
-  const entry={person:currentUser.name,time:new Date().toISOString()};
-  await dbPush(`choreLog/${todayStr}/${choreId}`,entry);
-  showToast(`✅ Logged for ${currentUser.name}!`);
-}
-
-async function undoChore(choreId,person){
-  // Find and remove the last log entry for this person today
-  const todayLog=choreLog[todayStr]?.[choreId]||{};
-  const entries=Object.entries(todayLog).filter(([,v])=>v.person===person);
-  if(!entries.length)return;
-  const lastKey=entries[entries.length-1][0];
-  await dbRemove(`choreLog/${todayStr}/${choreId}/${lastKey}`);
-  showToast(`Undone for ${person}`);
-}
-
-async function deleteChore(id){
-  if(!confirm('Delete this chore?'))return;
-  await dbRemove(`chores/${id}`);
-  await dbRemove(`choreLog/${todayStr}/${id}`);
-}
-
-function openAddChoreModal(){
-  document.getElementById('new-chore-name').value='';
-  document.getElementById('new-chore-icon').value='';
-  document.getElementById('new-chore-freq').value='1';
-  document.getElementById('new-chore-time').value='';
-  document.getElementById('new-chore-due').value='';
-  document.getElementById('add-chore-modal').classList.add('open');
-}
-function closeAddChoreModal(){document.getElementById('add-chore-modal').classList.remove('open');}
-function closeAddChoreBackdrop(e){if(e.target===document.getElementById('add-chore-modal'))closeAddChoreModal();}
-
-async function saveNewChore(){
-  const name=document.getElementById('new-chore-name').value.trim();
-  const icon=document.getElementById('new-chore-icon').value.trim()||'✅';
-  const freq=document.getElementById('new-chore-freq').value;
-  const choreTime=document.getElementById('new-chore-time').value;
-  const choreDue=document.getElementById('new-chore-due').value;
-  if(!name){showToast('Please enter a chore name');return;}
-  await dbPush('chores',{name,icon,freq:parseInt(freq),time:choreTime||null,dueBy:choreDue||null,created:Date.now()});
-  closeAddChoreModal();
-  showToast(`✅ "${name}" added to chores!`);
-}
-
-function showChoreHistory(choreId,choreName){
-  document.getElementById('history-title').textContent=`📋 ${choreName} — History`;
-  const content=document.getElementById('history-content');
-  content.innerHTML='';
-  const days=Object.keys(choreLog).sort().reverse().slice(0,14);
-  if(!days.length){content.innerHTML='<div class="empty-state">No history yet.</div>';
-  } else {
-    days.forEach(date=>{
-      const dayLog=choreLog[date]?.[choreId]||{};
-      const counts={};
-      Object.values(dayLog).forEach(e=>{counts[e.person]=(counts[e.person]||0)+1;});
-      if(!Object.keys(counts).length)return;
-      const d=new Date(date+'T12:00:00');
-      const label=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      const chips=Object.entries(counts).map(([person,count])=>{
-        const color=MEMBER_HEX[person]||'#888';
-        return`<div class="history-chip" style="background:${color}22;color:${color}">${person} ×${count}</div>`;
-      }).join('');
-      content.innerHTML+=`<div class="history-entry"><div class="history-date">${label}</div><div class="history-chips">${chips}</div></div>`;
-    });
-    if(!content.innerHTML)content.innerHTML='<div class="empty-state">No history yet.</div>';
-  }
-  document.getElementById('history-modal').classList.add('open');
-}
-function closeHistoryModal(){document.getElementById('history-modal').classList.remove('open');}
-function closeHistoryBackdrop(e){if(e.target===document.getElementById('history-modal'))closeHistoryModal();}
-
-// ── GROCERIES ──
-function renderGroceries(){
-  const gArr=Object.entries(groceries);
-  const cats=['All',...new Set(gArr.map(([,g])=>g.cat))];
-  const catDiv=document.getElementById('grocery-categories');
-  catDiv.innerHTML=cats.map(c=>`<div class="cat-chip${c===selectedGroceryCat?' active':''}" onclick="setGroceryCat('${c}')">${c}</div>`).join('');
-  const filtered=selectedGroceryCat==='All'?gArr:gArr.filter(([,g])=>g.cat===selectedGroceryCat);
-  const list=document.getElementById('grocery-list');list.innerHTML='';
-  const remaining=gArr.filter(([,g])=>!g.got).length;
-  document.getElementById('grocery-count').textContent=`${remaining} left`;
-  filtered.forEach(([id,g])=>{
-    const item=document.createElement('div');item.className='grocery-item';
-    item.innerHTML=`<div class="grocery-check ${g.got?'got':''}" onclick="toggleGrocery('${id}',${!g.got})">${g.got?'✓':''}</div>
-      <div class="grocery-label ${g.got?'got':''}">${g.label}</div>
-      <span class="grocery-cat-badge">${g.cat}</span>
-      <button class="delete-btn" onclick="deleteGrocery('${id}')">✕</button>`;
-    list.appendChild(item);
-  });
-}
-function setGroceryCat(cat){selectedGroceryCat=cat;renderGroceries();}
-async function toggleGrocery(id,val){await dbUpdate(`groceries/${id}`,{got:val});}
-async function deleteGrocery(id){await dbRemove(`groceries/${id}`);}
-async function addGroceryItem(){
-  const inp=document.getElementById('grocery-input');
-  const cat=document.getElementById('grocery-cat').value;
-  const label=inp.value.trim();
-  if(!label)return;
-  await dbPush('groceries',{label,got:false,cat,addedBy:currentUser?.name||'Guest'});
-  inp.value='';
-}
-async function clearGotItems(){
-  const toDelete=Object.entries(groceries).filter(([,g])=>g.got).map(([id])=>id);
-  for(const id of toDelete)await dbRemove(`groceries/${id}`);
-  showToast('🛒 Cleared checked items');
-}
-
-// ── ADD EVENT ──
-function openModal(){
-  document.getElementById('modal-backdrop').classList.add('open');
-  document.getElementById('evt-date').value=selectedDate;
-  if(currentUser&&currentUser.name!=='Guest')document.getElementById('evt-person').value=currentUser.name;
-}
-function closeModal(){document.getElementById('modal-backdrop').classList.remove('open');}
-function closeModalBackdrop(e){if(e.target===document.getElementById('modal-backdrop'))closeModal();}
-async function saveEvent(){
-  const person=document.getElementById('evt-person').value;
-  const title=document.getElementById('evt-title').value.trim();
-  const date=document.getElementById('evt-date').value;
-  const time=document.getElementById('evt-time').value;
-  const type=document.getElementById('evt-type').value;
-  if(!title||!date){alert('Please fill in a title and date.');return;}
-  await dbPush('events',{person,title,date,time,type,created:Date.now()});
-  closeModal();
-  showToast(`✅ Event added for ${person}`);
-  document.getElementById('evt-title').value='';document.getElementById('evt-time').value='';
-}
-
-// ── WEATHER ──
-async function refreshWeather(){
-  document.getElementById('weather-desc').textContent='Locating...';
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(
-      pos=>fetchWeather(pos.coords.latitude,pos.coords.longitude,true),
-      ()=>fetchWeather(36.3348,-92.3849,false));
-  }else fetchWeather(36.3348,-92.3849,false);
-}
-async function fetchWeather(lat,lon,geo){
-  try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=fahrenheit`);
-    const d=await r.json();const cw=d.current_weather;
-    document.getElementById('weather-icon').textContent=wmoIcon(cw.weathercode);
-    document.getElementById('weather-temp').textContent=Math.round(cw.temperature)+'°F';
-    document.getElementById('weather-desc').textContent=wmoDesc(cw.weathercode);
-    document.getElementById('weather-loc').textContent=geo?'Your Location':'Mountain Home, AR';
-  }catch{document.getElementById('weather-desc').textContent='Unavailable';}
-}
-function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=49)return'🌫️';if(c<=59)return'🌦️';if(c<=69)return'🌧️';if(c<=79)return'🌨️';if(c<=82)return'🌧️';if(c<=99)return'⛈️';return'🌤️';}
-function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
-
-// ── NOTIFICATIONS ──
-async function requestNotifications(){
-  if(!('Notification'in window)){showToast('❌ Not supported');return;}
-  const perm=await Notification.requestPermission();
-  updateNotifBtn(perm);
-  if(perm==='granted'){
-    showToast('🔔 Alerts on! 15-min warnings before your events.');
-    new Notification(`Hey ${currentUser?.name||'there'}! 🏠`,{body:'Young Family Dashboard alerts are on.'});
-    scheduleNotifications();
-  }else showToast('Blocked — enable in browser settings.');
-}
-function updateNotifBtn(perm){
-  const btn=document.getElementById('notif-btn');if(!btn)return;
-  if(perm==='granted'){btn.textContent='🔔 On';btn.className='notif-btn enabled';}
-  else if(perm==='denied'){btn.textContent='🔕 Off';btn.className='notif-btn denied';}
-  else{btn.textContent='🔔 Alerts';btn.className='notif-btn';}
-}
-function scheduleNotifications(){
-  if(Notification.permission!=='granted')return;
-  const myEvts=Object.values(events).filter(e=>e.person===currentUser?.name&&e.date===todayStr&&e.time);
-  const now=new Date();
-  myEvts.forEach(e=>{
-    const[h,m]=e.time.split(':').map(Number);
-    const evTime=new Date(today);evTime.setHours(h,m,0,0);
-    const delay=evTime.getTime()-15*60*1000-now.getTime();
-    if(delay>0)setTimeout(()=>{
-      new Notification(`⏰ Coming up, ${currentUser.name}!`,{body:`${e.title} starts in 15 minutes`,tag:`event-${e.id}`});
-    },delay);
-  });
-}
-
-// ── HOME ASSISTANT ──
-function openHAModal(){
-  if(haConfig){document.getElementById('ha-url-input').value=haConfig.url||'';document.getElementById('ha-token-input').value=haConfig.token||'';}
-  document.getElementById('ha-modal').classList.add('open');
-}
-function closeHAModal(){document.getElementById('ha-modal').classList.remove('open');}
-function closeHAModalBackdrop(e){if(e.target===document.getElementById('ha-modal'))closeHAModal();}
-function saveHAConfig(){
-  const url=document.getElementById('ha-url-input').value.trim().replace(/\/$/,'');
-  const token=document.getElementById('ha-token-input').value.trim();
-  if(!url||!token){showToast('❌ Please enter URL and token');return;}
-  haConfig={url,token};localStorage.setItem('young_ha_config',JSON.stringify(haConfig));
-  closeHAModal();refreshHA();
-}
-function disconnectHA(){haConfig=null;localStorage.removeItem('young_ha_config');closeHAModal();renderHASetup();
-  document.getElementById('ha-dot').className='ha-dot';document.getElementById('ha-status-text').textContent='Not connected';}
-function renderHASetup(){document.getElementById('ha-content').innerHTML=`<div class="ha-setup">
-  Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br>
-  <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button></div>`;}
-async function refreshHA(){
-  if(!haConfig)return;
-  document.getElementById('ha-status-text').textContent='Connecting...';
-  try{
-    const res=await fetch(`${haConfig.url}/api/states`,{headers:{'Authorization':`Bearer ${haConfig.token}`,'Content-Type':'application/json'}});
-    if(!res.ok)throw new Error(`HTTP ${res.status}`);
-    const all=await res.json();
-    haEntities=all.filter(e=>['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'].includes(e.entity_id.split('.')[0]));
-    document.getElementById('ha-dot').className='ha-dot connected';
-    document.getElementById('ha-status-text').textContent=`Connected · ${haEntities.length} entities`;
-    renderHATiles();
-  }catch(err){
-    document.getElementById('ha-dot').className='ha-dot error';
-    document.getElementById('ha-status-text').textContent='Connection failed';
-    document.getElementById('ha-content').innerHTML=`<div class="ha-setup">Could not connect. Check your URL and token.<br><br>
-      <span style="color:#ff6b6b;font-size:.8rem;">Error: ${err.message}</span><br><br>
-      <button class="btn btn-primary" onclick="openHAModal()">Try Again</button></div>`;
-  }
-}
-function renderHATiles(){
-  const priority=['light','switch','lock','climate','cover'];
-  const sorted=[...haEntities].sort((a,b)=>{
-    const da=priority.indexOf(a.entity_id.split('.')[0]);const db=priority.indexOf(b.entity_id.split('.')[0]);
-    return(da===-1?99:da)-(db===-1?99:db);
-  });
-  const shown=sorted.slice(0,12);
-  document.getElementById('ha-content').innerHTML=`<div class="ha-grid">${shown.map(e=>haTile(e)).join('')}</div>
-    ${haEntities.length>12?`<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of ${haEntities.length} entities</div>
+      <div clas
