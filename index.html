@@ -16,7 +16,8 @@
   import { getDatabase, ref, onValue, set, push, update, remove, get }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
- const firebaseConfig = {
+  // ── PASTE YOUR FIREBASE CONFIG HERE ──
+  const firebaseConfig = {
     apiKey: "AIzaSyBmvRv99OG5qK9P2MVCoBUTILvRX8v56P0",
     authDomain: "young-family-770d5.firebaseapp.com",
     databaseURL: "https://young-family-770d5-default-rtdb.firebaseio.com",
@@ -25,10 +26,6 @@
     messagingSenderId: "224373739078",
     appId: "1:224373739078:web:49d5a5391fe42b41770447"
   };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
