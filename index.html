@@ -841,23 +841,29 @@ function subscribeAll(){
   const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef,
          mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef}=window._fb;
   let loaded=0;let booted=false;
-  const TOTAL=10;
-  const check=()=>{if(++loaded>=TOTAL&&!booted){booted=true;
+  const TOTAL=9; // settings removed from count — core data only
+  const boot=()=>{
+    if(booted)return;booted=true;
     document.getElementById('splash').classList.add('hidden');
     setSyncStatus('live');
     showWelcome();
-  }};
-  onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();check();});
-  onValue(choresRef(),        snap=>{chores       =snap.val()||{};renderChores();check();});
-  onValue(groceriesRef(),     snap=>{groceries    =snap.val()||{};renderGroceries();check();});
-  onValue(choreLogRef(),      snap=>{choreLog     =snap.val()||{};renderChores();check();});
-  onValue(mealsRef(),         snap=>{meals        =snap.val()||{};renderMeals();renderWeek();check();});
-  onValue(announcementsRef(), snap=>{announcements=snap.val()||{};renderAnnouncements();check();});
-  onValue(countdownsRef(),    snap=>{countdowns   =snap.val()||{};renderCountdownStrip();check();});
-  onValue(pointsRef(),        snap=>{points       =snap.val()||{};renderPointsTab();renderMembers();check();});
-  onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();check();});
-  // settings is 10th
-  onValue(window._fb.ref(window._fb.db,'settings'), snap=>{check();});
+  };
+  const check=()=>{if(++loaded>=TOTAL)boot();};
+  const err=()=>{check();}; // on permission error, still count as loaded
+
+  // Safety net: boot after 5s no matter what (handles rules issues, slow network)
+  setTimeout(boot,5000);
+
+  onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();check();},err);
+  onValue(choresRef(),        snap=>{chores       =snap.val()||{};renderChores();check();},err);
+  onValue(groceriesRef(),     snap=>{groceries    =snap.val()||{};renderGroceries();check();},err);
+  onValue(choreLogRef(),      snap=>{choreLog     =snap.val()||{};renderChores();check();},err);
+  onValue(mealsRef(),         snap=>{meals        =snap.val()||{};renderMeals();renderWeek();check();},err);
+  onValue(announcementsRef(), snap=>{announcements=snap.val()||{};renderAnnouncements();check();},err);
+  onValue(countdownsRef(),    snap=>{countdowns   =snap.val()||{};renderCountdownStrip();check();},err);
+  onValue(pointsRef(),        snap=>{points       =snap.val()||{};renderPointsTab();renderMembers();check();},err);
+  onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();check();},err);
+  onValue(window._fb.ref(window._fb.db,'settings'), snap=>{},()=>{}); // optional, not counted
 }
 
 function setSyncStatus(status){
@@ -1211,9 +1217,4 @@ function renderMembers(){
     const card=document.createElement('div');
     card.className=`member-card ${m.cls}`;
     if(i===4)card.style.gridColumn='1/-1';
-    if(isMe)card.style.outline=`2px solid ${m.color}44`;
-    card.innerHTML=`<div class="member-header"><div>
-      <div class="member-name">${m.emoji} ${m.key}${isMe?'<span class="me-tag">you</span>':''}</div>
-      <div class="member-role">${m.role}</div></div>
-      <div class="status-badge ${statusCls}">${statusLabel}</div></div>
-      <div clas
+    if(isMe)card.style.outline=`2px solid
