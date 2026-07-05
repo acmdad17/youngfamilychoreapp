@@ -1245,7 +1245,7 @@ function renderAnnouncements(){
     const item=document.createElement('div');
     item.className='annc-item';
     item.innerHTML=`<span style="font-size:1rem">${a.emoji||'📢'}</span>
-      <span class="annc-text">${a.text}</span>
+      <span class="annc-text">${escHtml(a.text)}</span>
       <span class="annc-author">— ${a.author}</span>
       <button class="annc-close" onclick="deleteAnnouncement('${id}')">✕</button>`;
     bar.appendChild(item);
@@ -1422,7 +1422,7 @@ function renderChores(){
       <div class="chore-icon">${chore.icon||'✅'}</div>
       <div class="chore-info">
         <div class="chore-name" style="${complete?'text-decoration:line-through;color:var(--muted)':''}">
-          ${chore.name}<span class="chore-points-badge">&#11088;${pts}</span>
+          ${escHtml(chore.name)}<span class="chore-points-badge">&#11088;${pts}</span>
           ${chore.time?`<span style="font-size:.65rem;color:var(--muted);margin-left:4px">&#9200; ${formatTime(chore.time)}</span>`:''}
           ${buildChoreStreakBadges(id)}
         </div>
@@ -1437,7 +1437,7 @@ function renderChores(){
         <button class="delete-btn" onclick="deleteChore('${id}')">✕</button>
       </div></div>
       ${counterChips?`<div class="chore-counters">${counterChips}</div>`:''}
-      <button class="chore-history-btn" onclick="showChoreHistory('${id}','${chore.name}')">View history →</button>`;
+      <button class="chore-history-btn" onclick="showChoreHistory('${id}')">View history →</button>`;
     list.appendChild(item);
   });
 }
@@ -1523,7 +1523,8 @@ async function saveNewChore(){
   await dbPush('chores',{name,icon,freq:parseInt(freq),time:choreTime||null,dueBy:choreDue||null,points:pts,assignedTo:checked.length?checked:null,created:Date.now()});
   closeAddChoreModal();showToast(`✅ "${name}" added`);
 }
-function showChoreHistory(choreId,choreName){
+function showChoreHistory(choreId){
+  const choreName=chores[choreId]?.name||choreId;
   document.getElementById('history-title').textContent=`${choreName} — History`;
   const content=document.getElementById('history-content');content.innerHTML='';
   const days=Object.keys(choreLog).sort().reverse().slice(0,14);
@@ -1635,7 +1636,7 @@ function renderGroceries(){
   filtered.forEach(([id,g])=>{
     const item=document.createElement('div');item.className='grocery-item';
     item.innerHTML=`<div class="grocery-check ${g.got?'got':''}" onclick="toggleGrocery('${id}',${!g.got})">${g.got?'✓':''}</div>
-      <div class="grocery-label ${g.got?'got':''}">${g.label}</div>
+      <div class="grocery-label ${g.got?'got':''}">${escHtml(g.label)}</div>
       <span class="grocery-cat-badge">${g.cat}</span>
       <button class="delete-btn" onclick="deleteGrocery('${id}')">✕</button>`;
     list.appendChild(item);
