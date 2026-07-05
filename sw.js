@@ -48,4 +48,17 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first 
+  // Cache-first for other static assets (fonts, manifest, etc.)
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(response => {
+        if (e.request.method === 'GET' && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return response;
+      });
+    })
+  );
+});
