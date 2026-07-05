@@ -12,8 +12,10 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, onValue, set, push, update, remove, get }
+  import { getDatabase, ref, onValue, set, push, update, remove, get, runTransaction }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, signInAnonymously }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBmvRv99OG5qK9P2MVCoBUTILvRX8v56P0",
@@ -27,9 +29,10 @@
 
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
+  const auth = getAuth(app);
 
   window._fb = {
-    ref, onValue, set, push, update, remove, get, db,
+    ref, onValue, set, push, update, remove, get, runTransaction, db,
     eventsRef:        () => ref(db, 'events'),
     choresRef:        () => ref(db, 'chores'),
     groceriesRef:     () => ref(db, 'groceries'),
@@ -43,8 +46,18 @@
     familyAlertsRef:  () => ref(db, 'familyAlerts'),
   };
 
-  window._fbReady = true;
-  document.dispatchEvent(new Event('fb-ready'));
+  // Sign in anonymously before allowing any database access.
+  // Family members never see a login prompt; auth happens silently.
+  signInAnonymously(auth)
+    .then(() => {
+      window._fbReady = true;
+      document.dispatchEvent(new Event('fb-ready'));
+    })
+    .catch(err => {
+      console.error('Firebase auth failed:', err);
+      // Still let the UI boot in offline mode
+      document.dispatchEvent(new Event('fb-ready'));
+    });
 </script>
 
 <style>
@@ -904,9 +917,9 @@ const MEMBERS=[
 ];
 const MEMBER_HEX=Object.fromEntries(MEMBERS.map(m=>[m.key,m.color]));
 
-const today=new Date();
-const todayStr=fmtDate(today);
-function fmtDate(d){return d.toISOString().split('T')[0];}
+let today=new Date();
+let todayStr=fmtDate(today);
+function fmtDate(d){return d.toLocaleDateString('en-CA');}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 
 let currentUser=JSON.parse(sessionStorage.getItem('young_user')||'null');
@@ -1069,6 +1082,10 @@ async function dbRemove(path){
 }
 async function dbUpdate(path,value){
   if(fbReady&&window._fb){const {ref,update,db}=window._fb;await update(ref(db,path),value);}
+  else{saveLocal();}
+}
+async function dbTransaction(path,updateFn){
+  if(fbReady&&window._fb){const {ref,runTransaction,db}=window._fb;await runTransaction(ref(db,path),updateFn);}
   else{saveLocal();}
 }
 
@@ -1431,8 +1448,7 @@ async function logChore(choreId){
   if(!currentUser||currentUser.name==='Guest'){showToast('Please select yourself first');return;}
   await dbPush(`choreLog/${todayStr}/${choreId}`,{person:currentUser.name,time:new Date().toISOString()});
   const pts=chores[choreId]?.points||1;
-  const cur=points[currentUser.name]?.total||0;
-  await dbSet(`points/${currentUser.name}/total`,cur+pts);
+  await dbTransaction(`points/${currentUser.name}/total`,cur=>(cur||0)+pts);
   const streak=await updateStreak(currentUser.name,choreId);
   if(streak>0&&streak%7===0){
     showAlert('🔥',`${currentUser.name} is on fire`,`${streak}-day streak on "${chores[choreId]?.name}" — keep it up`,'#ff8c42');
@@ -1477,8 +1493,7 @@ async function undoChore(choreId,person){
   if(!entries.length)return;
   await dbRemove(`choreLog/${todayStr}/${choreId}/${entries[entries.length-1][0]}`);
   const pts=chores[choreId]?.points||1;
-  const cur=points[person]?.total||0;
-  await dbSet(`points/${person}/total`,Math.max(0,cur-pts));
+  await dbTransaction(`points/${person}/total`,cur=>Math.max(0,(cur||0)-pts));
   showToast(`Undone for ${person} (-${pts} pts)`);
 }
 async function deleteChore(id){
@@ -1603,7 +1618,7 @@ async function redeemReward(id){
   const r=rewards[id];if(!r)return;
   const cur=points[currentUser.name]?.total||0;
   if(cur<r.cost){showToast(`Need ${r.cost} pts — you have ${cur}`);return;}
-  await dbSet(`points/${currentUser.name}/total`,cur-r.cost);showToast(`Redeemed "${r.name}"!`);
+  await dbTransaction(`points/${currentUser.name}/total`,cur=>Math.max(0,(cur||0)-r.cost));showToast(`Redeemed "${r.name}"!`);
 }
 function adjustAllowance(person,delta){setAllowance(person,Math.max(0,getAllowance(person)+delta));renderPointsTab();}
 function adjustAllowanceCustom(person){
@@ -1896,7 +1911,7 @@ const ALERT_TYPES=[
 ];
 let familyAlerts={};
 let currentAlertId=null;
-let lastAlertSeen=null;
+let lastAlertSeen=localStorage.getItem('young_lastAlertSeen');
 
 function playDing(){
   try{
@@ -1916,9 +1931,11 @@ function playDing(){
 async function triggerAlert(type){
   if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
   const at=ALERT_TYPES.find(a=>a.type===type);if(!at)return;
-  // Deactivate any existing active alert of same type
+  // Deactivate any existing active alert of same type; prune nodes older than 1 hour
+  const cutoff=Date.now()-60*60*1000;
   for(const[id,a] of Object.entries(familyAlerts)){
     if(a.active&&a.type===type) await dbUpdate(`familyAlerts/${id}`,{active:false});
+    else if(!a.active&&a.triggeredAt<cutoff) await dbRemove(`familyAlerts/${id}`);
   }
   await dbPush('familyAlerts',{
     type,label:at.label,emoji:at.emoji,color:at.color,
@@ -1939,13 +1956,10 @@ async function claimCurrentAlert(){
   setTimeout(()=>{closeFamilyAlertOverlay();},1800);
 }
 
-async function handleAlertDismiss(){
-  if(currentAlertId){
-    await dbUpdate(`familyAlerts/${currentAlertId}`,{active:false});
-    closeFamilyAlertOverlay();
-  } else {
-    document.getElementById('alert-overlay').classList.remove('open');
-  }
+function handleAlertDismiss(){
+  // Dismiss is local-only — closes your overlay without affecting other devices.
+  // Only "I'll get it" (claim) writes to Firebase and notifies everyone.
+  closeFamilyAlertOverlay();
 }
 
 function closeFamilyAlertOverlay(){
@@ -1969,14 +1983,16 @@ function showFamilyAlertOverlay(id,alert){
 }
 
 function handleAlertsUpdate(newAlerts){
+  const ALERT_TTL=10*60*1000; // ignore alerts older than 10 minutes
   // New active alert from someone else
   const active=Object.entries(newAlerts)
     .sort(([,a],[,b])=>b.triggeredAt-a.triggeredAt)
-    .find(([,a])=>a.active);
+    .find(([,a])=>a.active&&(Date.now()-a.triggeredAt)<ALERT_TTL);
   if(active){
     const[id,alert]=active;
     if(id!==lastAlertSeen){
       lastAlertSeen=id;
+      localStorage.setItem('young_lastAlertSeen',id);
       showFamilyAlertOverlay(id,alert);
     }
   }
@@ -2043,6 +2059,13 @@ if('serviceWorker'in navigator){
   navigator.serviceWorker.register('sw.js');
   navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.type==='SW_UPDATED')window.location.reload();});
 }
+
+// ── MIDNIGHT ROLLOVER ──
+// Reload the app when the calendar date changes so todayStr, chore resets,
+// streaks, and the week strip all reflect the new day.
+setInterval(()=>{
+  if(fmtDate(new Date())!==todayStr) window.location.reload();
+}, 60_000);
 
 // ── BOOT ──
 waitForFirebase();
