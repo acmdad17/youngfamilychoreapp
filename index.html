@@ -923,7 +923,7 @@ let todayStr=fmtDate(today);
 function fmtDate(d){return d.toLocaleDateString('en-CA');}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
 
-let currentUser=JSON.parse(sessionStorage.getItem('young_user')||'null');
+let currentUser=JSON.parse(localStorage.getItem('young_user')||'null');
 let fbReady=false;
 
 // ── STATE ──
@@ -1108,7 +1108,7 @@ function buildPicker(){
 
 function selectUser(name,emoji,color,cls){
   currentUser={name,emoji,color,cls};
-  sessionStorage.setItem('young_user',JSON.stringify(currentUser));
+  localStorage.setItem('young_user',JSON.stringify(currentUser));
   const ws=document.getElementById('welcome-screen');
   ws.classList.add('hidden');
   setTimeout(()=>ws.style.display='none',500);
@@ -1118,7 +1118,7 @@ function selectUser(name,emoji,color,cls){
 
 function switchUser(){
   window._switching=true;
-  sessionStorage.removeItem('young_user');
+  localStorage.removeItem('young_user');
   currentUser=null;
   document.getElementById('app').classList.remove('visible');
   document.querySelectorAll('.modal-backdrop.open').forEach(m=>m.classList.remove('open'));
