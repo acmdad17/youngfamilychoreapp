@@ -44,6 +44,7 @@
     pointsRef:        () => ref(db, 'points'),
     rewardsRef:       () => ref(db, 'rewards'),
     familyAlertsRef:  () => ref(db, 'familyAlerts'),
+    allowanceRef:     () => ref(db, 'allowance'),
   };
 
   // Sign in anonymously before allowing any database access.
@@ -937,6 +938,7 @@ let points={};
 let rewards={};
 let streaks={};
 let calEvents={};
+let allowance={};
 
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
@@ -945,16 +947,9 @@ let currentPointsTab='points';
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
 
-// Per-person allowance in localStorage (offline-friendly)
-function getAllowance(person){
-  const a=JSON.parse(localStorage.getItem('young_allowance')||'{}');
-  return a[person]||0;
-}
-function setAllowance(person,val){
-  const a=JSON.parse(localStorage.getItem('young_allowance')||'{}');
-  a[person]=val;
-  localStorage.setItem('young_allowance',JSON.stringify(a));
-}
+// Per-person allowance — synced via Firebase so all devices agree
+function getAllowance(person){return allowance[person]||0;}
+async function setAllowance(person,val){await dbSet(`allowance/${person}`,val);}
 
 // ── RECURRING HELPER ──
 function eventOccursOn(evt,dateStr){
@@ -997,7 +992,7 @@ function onFirebaseReady(){
 function subscribeAll(){
   try{
     const {onValue,eventsRef,choresRef,groceriesRef,choreLogRef,
-           mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef}=window._fb;
+           mealsRef,announcementsRef,countdownsRef,pointsRef,rewardsRef,allowanceRef}=window._fb;
     const noop=()=>{};
     const {ref,onValue:ov,db}=window._fb;
     onValue(eventsRef(),        snap=>{events       =snap.val()||{};renderAll();         setSyncStatus('live');},noop);
@@ -1012,6 +1007,7 @@ function subscribeAll(){
     ov(ref(db,'streaks'),       snap=>{streaks      =snap.val()||{};renderChores();renderMembers();renderPointsTab();},noop);
     ov(ref(db,'calEvents'),     snap=>{calEvents    =snap.val()||{};renderAll();},noop);
     ov(ref(db,'familyAlerts'),  snap=>{familyAlerts =snap.val()||{};handleAlertsUpdate(familyAlerts);},noop);
+    onValue(allowanceRef(),     snap=>{allowance    =snap.val()||{};renderPointsTab();renderMembers();},noop);
   }catch(e){
     console.error('subscribeAll error:',e);
     setSyncStatus('error');
@@ -1037,6 +1033,7 @@ function loadLocal(){
   countdowns=JSON.parse(localStorage.getItem('young_cds')||'{}');
   points   =JSON.parse(localStorage.getItem('young_points')||'{}');
   rewards  =JSON.parse(localStorage.getItem('young_rewards')||'{}');
+  allowance=JSON.parse(localStorage.getItem('young_allowance')||'{}');
 }
 function saveLocal(){
   localStorage.setItem('young_events',JSON.stringify(events));
@@ -1048,6 +1045,7 @@ function saveLocal(){
   localStorage.setItem('young_cds',JSON.stringify(countdowns));
   localStorage.setItem('young_points',JSON.stringify(points));
   localStorage.setItem('young_rewards',JSON.stringify(rewards));
+  localStorage.setItem('young_allowance',JSON.stringify(allowance));
 }
 
 // ── DB HELPERS ──
@@ -1620,10 +1618,10 @@ async function redeemReward(id){
   if(cur<r.cost){showToast(`Need ${r.cost} pts — you have ${cur}`);return;}
   await dbTransaction(`points/${currentUser.name}/total`,cur=>Math.max(0,(cur||0)-r.cost));showToast(`Redeemed "${r.name}"!`);
 }
-function adjustAllowance(person,delta){setAllowance(person,Math.max(0,getAllowance(person)+delta));renderPointsTab();}
-function adjustAllowanceCustom(person){
+async function adjustAllowance(person,delta){await setAllowance(person,Math.max(0,getAllowance(person)+delta));}
+async function adjustAllowanceCustom(person){
   const amt=parseFloat(prompt(`Amount to add/subtract for ${person}:`));
-  if(!isNaN(amt)){setAllowance(person,Math.max(0,getAllowance(person)+amt));renderPointsTab();}
+  if(!isNaN(amt)){await setAllowance(person,Math.max(0,getAllowance(person)+amt));}
 }
 
 // ── GROCERIES ──
