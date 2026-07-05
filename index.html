@@ -40,6 +40,7 @@
     countdownsRef:    () => ref(db, 'countdowns'),
     pointsRef:        () => ref(db, 'points'),
     rewardsRef:       () => ref(db, 'rewards'),
+    familyAlertsRef:  () => ref(db, 'familyAlerts'),
   };
 
   window._fbReady = true;
@@ -367,6 +368,33 @@
     background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 20px;
     font-size:.85rem;font-weight:600;transition:transform .3s;z-index:600;white-space:nowrap;}
   .toast.show{transform:translateX(-50%) translateY(0);}
+
+  /* FAMILY ALERTS PANEL */
+  .alerts-panel{grid-column:1/-1;}
+  .alerts-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  @media(max-width:800px){.alerts-grid{grid-template-columns:repeat(2,1fr);}}
+  .alert-trigger-btn{
+    background:color-mix(in srgb,var(--ac,#06d6a0) 10%,var(--surface2));
+    border:2px solid color-mix(in srgb,var(--ac,#06d6a0) 35%,var(--border));
+    border-radius:18px;padding:22px 12px;
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    cursor:pointer;transition:all .2s;font-family:'Nunito',sans-serif;color:var(--text);width:100%;
+  }
+  .alert-trigger-btn:hover,.alert-trigger-btn:active{
+    transform:translateY(-3px);
+    border-color:var(--ac,#06d6a0);
+    background:color-mix(in srgb,var(--ac,#06d6a0) 20%,var(--surface2));
+    box-shadow:0 8px 24px color-mix(in srgb,var(--ac,#06d6a0) 25%,transparent);
+  }
+  .atb-icon{font-size:2.2rem;line-height:1;}
+  .atb-label{font-size:.88rem;font-weight:800;text-align:center;line-height:1.3;}
+  .alert-claim-btn{
+    background:rgba(6,214,160,.15);border:2px solid #06d6a0;color:#06d6a0;
+    border-radius:14px;padding:14px 36px;font-family:'Nunito',sans-serif;
+    font-size:1rem;font-weight:800;cursor:pointer;transition:all .2s;
+  }
+  .alert-claim-btn:hover{background:rgba(6,214,160,.3);transform:scale(1.03);}
+  .alert-who{font-size:1.1rem;font-weight:800;color:#06d6a0;margin-top:4px;}
 
   /* PERSISTENT ALERT OVERLAY */
   #alert-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);
@@ -738,6 +766,25 @@
       <div class="selected-events-list" id="selected-events-list"></div>
     </div>
 
+    <!-- Family Alerts -->
+    <div class="panel alerts-panel" data-tab="home">
+      <div class="panel-title"><span>🔔 Family Alerts</span></div>
+      <div class="alerts-grid">
+        <button class="alert-trigger-btn" style="--ac:#4fc3f7" onclick="triggerAlert('dishwasher')">
+          <span class="atb-icon">🍽️</span><span class="atb-label">Dishwasher is done</span>
+        </button>
+        <button class="alert-trigger-btn" style="--ac:#ff7eb3" onclick="triggerAlert('laundry')">
+          <span class="atb-icon">👕</span><span class="atb-label">Move laundry</span>
+        </button>
+        <button class="alert-trigger-btn" style="--ac:#ff8c42" onclick="triggerAlert('feedDogs')">
+          <span class="atb-icon">🐕</span><span class="atb-label">Feed dogs</span>
+        </button>
+        <button class="alert-trigger-btn" style="--ac:#06d6a0" onclick="triggerAlert('dinner')">
+          <span class="atb-icon">🍴</span><span class="atb-label">Dinner's ready</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Chores -->
     <div class="panel chores-panel" data-tab="chores">
       <div class="panel-title">
@@ -833,12 +880,16 @@
 <div class="toast" id="toast"></div>
 
 <!-- PERSISTENT ALERT OVERLAY -->
-<div id="alert-overlay" onclick="if(event.target===this)dismissAlert()">
+<div id="alert-overlay" onclick="if(event.target===this)handleAlertDismiss()">
   <div class="alert-card" id="alert-card">
     <div class="alert-icon" id="alert-icon">✅</div>
     <div class="alert-title" id="alert-title"></div>
     <div class="alert-body" id="alert-body"></div>
-    <button class="alert-dismiss" onclick="dismissAlert()">Got it</button>
+    <div class="alert-who" id="alert-who" style="display:none;"></div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
+      <button id="alert-claim-btn" class="alert-claim-btn" onclick="claimCurrentAlert()" style="display:none;">I'll get it</button>
+      <button id="alert-dismiss-btn" class="alert-dismiss" onclick="handleAlertDismiss()">Got it</button>
+    </div>
   </div>
 </div>
 
@@ -947,6 +998,7 @@ function subscribeAll(){
     onValue(rewardsRef(),       snap=>{rewards      =snap.val()||{};renderPointsTab();},noop);
     ov(ref(db,'streaks'),       snap=>{streaks      =snap.val()||{};renderChores();renderMembers();renderPointsTab();},noop);
     ov(ref(db,'calEvents'),     snap=>{calEvents    =snap.val()||{};renderAll();},noop);
+    ov(ref(db,'familyAlerts'),  snap=>{familyAlerts =snap.val()||{};handleAlertsUpdate(familyAlerts);},noop);
   }catch(e){
     console.error('subscribeAll error:',e);
     setSyncStatus('error');
@@ -1835,16 +1887,128 @@ function showToast(msg,duration=3000){
   setTimeout(()=>t.classList.remove('show'),duration);
 }
 
-// ── PERSISTENT ALERT ──
+// ── FAMILY ALERTS ──
+const ALERT_TYPES=[
+  {type:'dishwasher',emoji:'🍽️',label:'Dishwasher is done',color:'#4fc3f7'},
+  {type:'laundry',   emoji:'👕',label:'Move laundry',       color:'#ff7eb3'},
+  {type:'feedDogs',  emoji:'🐕',label:'Feed dogs',          color:'#ff8c42'},
+  {type:'dinner',    emoji:'🍴',label:"Dinner's ready",     color:'#06d6a0'},
+];
+let familyAlerts={};
+let currentAlertId=null;
+let lastAlertSeen=null;
+
+function playDing(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [[880,.0],[660,.18]].forEach(([freq,delay])=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=freq;osc.type='sine';
+      const t=ctx.currentTime+delay;
+      gain.gain.setValueAtTime(0.5,t);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.7);
+      osc.start(t);osc.stop(t+0.7);
+    });
+  }catch(e){}
+}
+
+async function triggerAlert(type){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
+  const at=ALERT_TYPES.find(a=>a.type===type);if(!at)return;
+  // Deactivate any existing active alert of same type
+  for(const[id,a] of Object.entries(familyAlerts)){
+    if(a.active&&a.type===type) await dbUpdate(`familyAlerts/${id}`,{active:false});
+  }
+  await dbPush('familyAlerts',{
+    type,label:at.label,emoji:at.emoji,color:at.color,
+    triggeredBy:currentUser.name,triggeredAt:Date.now(),
+    claimedBy:null,active:true
+  });
+}
+
+async function claimCurrentAlert(){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
+  if(!currentAlertId)return;
+  await dbUpdate(`familyAlerts/${currentAlertId}`,{claimedBy:currentUser.name,active:false});
+  // Show "you're on it" locally
+  document.getElementById('alert-claim-btn').style.display='none';
+  document.getElementById('alert-who').textContent=`${currentUser.name} is on it`;
+  document.getElementById('alert-who').style.display='block';
+  document.getElementById('alert-dismiss-btn').textContent='Done';
+  setTimeout(()=>{closeFamilyAlertOverlay();},1800);
+}
+
+async function handleAlertDismiss(){
+  if(currentAlertId){
+    await dbUpdate(`familyAlerts/${currentAlertId}`,{active:false});
+    closeFamilyAlertOverlay();
+  } else {
+    document.getElementById('alert-overlay').classList.remove('open');
+  }
+}
+
+function closeFamilyAlertOverlay(){
+  currentAlertId=null;
+  document.getElementById('alert-overlay').classList.remove('open');
+}
+
+function showFamilyAlertOverlay(id,alert){
+  currentAlertId=id;
+  document.getElementById('alert-icon').textContent=alert.emoji||'🔔';
+  document.getElementById('alert-title').textContent=alert.label;
+  document.getElementById('alert-body').textContent=`${alert.triggeredBy} needs a hand`;
+  document.getElementById('alert-card').style.borderColor=alert.color||'var(--accent)';
+  document.getElementById('alert-claim-btn').style.display='';
+  document.getElementById('alert-dismiss-btn').textContent='Dismiss';
+  document.getElementById('alert-who').style.display='none';
+  document.getElementById('alert-who').textContent='';
+  document.getElementById('alert-overlay').classList.add('open');
+  playDing();
+  if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
+}
+
+function handleAlertsUpdate(newAlerts){
+  // New active alert from someone else
+  const active=Object.entries(newAlerts)
+    .sort(([,a],[,b])=>b.triggeredAt-a.triggeredAt)
+    .find(([,a])=>a.active);
+  if(active){
+    const[id,alert]=active;
+    if(id!==lastAlertSeen){
+      lastAlertSeen=id;
+      showFamilyAlertOverlay(id,alert);
+    }
+  }
+  // Our current alert was claimed by someone else
+  if(currentAlertId&&newAlerts[currentAlertId]&&!newAlerts[currentAlertId].active){
+    const a=newAlerts[currentAlertId];
+    if(a.claimedBy&&a.claimedBy!==currentUser?.name){
+      document.getElementById('alert-claim-btn').style.display='none';
+      document.getElementById('alert-who').textContent=`${a.claimedBy} is on it`;
+      document.getElementById('alert-who').style.display='block';
+      document.getElementById('alert-dismiss-btn').textContent='Done';
+      setTimeout(()=>{closeFamilyAlertOverlay();},2000);
+    } else if(!a.claimedBy){
+      // Dismissed with no claim
+      closeFamilyAlertOverlay();
+    }
+  }
+}
+
+// ── PERSISTENT ALERT (milestone only) ──
 function showAlert(icon,title,body,color){
+  currentAlertId=null;
   document.getElementById('alert-icon').textContent=icon||'✅';
   document.getElementById('alert-title').textContent=title||'';
   document.getElementById('alert-body').textContent=body||'';
   document.getElementById('alert-card').style.borderColor=color||'var(--accent)';
+  document.getElementById('alert-claim-btn').style.display='none';
+  document.getElementById('alert-who').style.display='none';
+  document.getElementById('alert-dismiss-btn').textContent='Got it';
   document.getElementById('alert-overlay').classList.add('open');
   if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
 }
-function dismissAlert(){document.getElementById('alert-overlay').classList.remove('open');}
 
 // ── TABS ──
 let activeTab='home';
