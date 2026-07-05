@@ -40,22 +40,24 @@ self.addEventListener('notificationclick', event => {
 });
 
 // ── CACHE ──
-const CACHE  = 'young-fam-v5';
+const CACHE  = 'young-fam-v6';
 const STATIC = [
-  '/manifest.json',
+  '/youngfamilychoreapp/manifest.json',
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;800&display=swap',
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(c => Promise.allSettled(STATIC.map(url => c.add(url))))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))) // v6 purges v5
       .then(() => self.clients.claim())
       .then(() => {
         return self.clients.matchAll({ type: 'window' }).then(cs => {
