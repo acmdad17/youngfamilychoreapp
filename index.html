@@ -247,6 +247,8 @@
   .sel-event-person{font-size:.72rem;}
   .sel-recurring-badge{font-size:.6rem;padding:1px 5px;border-radius:4px;background:rgba(79,195,247,.15);color:#4fc3f7;margin-left:4px;}
   .delete-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0;border-radius:6px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;}
+  .edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0;border-radius:6px;min-width:36px;min-height:36px;display:flex;align-items:center;justify-content:center;opacity:.6;}
+  .edit-btn:hover{opacity:1;}
   .delete-btn:hover{color:#ff6b6b;}
   .empty-state{color:var(--muted);font-size:.85rem;text-align:center;padding:20px;}
 
@@ -529,7 +531,7 @@
 <!-- ADD EVENT MODAL -->
 <div class="modal-backdrop" id="modal-backdrop" onclick="closeModalBackdrop(event)">
   <div class="modal">
-    <h2>Add Event</h2>
+    <h2 id="event-modal-title">Add Event</h2>
     <div class="form-group"><label>Person</label>
       <select id="evt-person">
         <option>Bradford</option><option>Brooke</option><option>Audrey</option>
@@ -566,7 +568,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEvent()">Save Event</button>
+      <button class="btn btn-primary" id="event-save-btn" onclick="saveEvent()">Save Event</button>
     </div>
   </div>
 </div>
@@ -574,7 +576,7 @@
 <!-- ADD CHORE MODAL -->
 <div class="modal-backdrop" id="add-chore-modal" onclick="closeAddChoreBackdrop(event)">
   <div class="modal">
-    <h2>Add Chore</h2>
+    <h2 id="chore-modal-title">Add Chore</h2>
     <div class="form-group"><label>Chore Name</label>
       <input type="text" id="new-chore-name" placeholder="e.g. Let dogs out">
     </div>
@@ -604,7 +606,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeAddChoreModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveNewChore()">Add Chore</button>
+      <button class="btn btn-primary" id="chore-save-btn" onclick="saveNewChore()">Add Chore</button>
     </div>
   </div>
 </div>
@@ -638,7 +640,7 @@
 <!-- ADD COUNTDOWN MODAL -->
 <div class="modal-backdrop" id="countdown-modal" onclick="if(event.target===this)closeCountdownModal()">
   <div class="modal">
-    <h2>⏳ Add Countdown</h2>
+    <h2 id="countdown-modal-title">⏳ Add Countdown</h2>
     <div class="form-group"><label>Icon</label>
       <input type="text" id="cd-icon" placeholder="🎄" maxlength="2" value="⏳">
     </div>
@@ -650,7 +652,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeCountdownModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveCountdown()">Add</button>
+      <button class="btn btn-primary" id="countdown-save-btn" onclick="saveCountdown()">Add</button>
     </div>
   </div>
 </div>
@@ -658,7 +660,7 @@
 <!-- ADD REWARD MODAL -->
 <div class="modal-backdrop" id="reward-modal" onclick="if(event.target===this)closeRewardModal()">
   <div class="modal">
-    <h2>🏆 Add Reward</h2>
+    <h2 id="reward-modal-title">🏆 Add Reward</h2>
     <div class="form-group"><label>Icon</label>
       <input type="text" id="rwd-icon" placeholder="🎮" maxlength="2" value="🏆">
     </div>
@@ -670,7 +672,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeRewardModal()">Cancel</button>
-      <button class="btn btn-yellow" onclick="saveReward()">Add Reward</button>
+      <button class="btn btn-yellow" id="reward-save-btn" onclick="saveReward()">Add Reward</button>
     </div>
   </div>
 </div>
@@ -944,6 +946,7 @@ let selectedDate=todayStr;
 let selectedGroceryCat='All';
 let filterMember=null;
 let currentPointsTab='points';
+let _editingChoreId=null,_editingEventId=null,_editingRewardId=null,_editingCountdownId=null;
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
 
@@ -1287,6 +1290,7 @@ function renderCountdownStrip(){
           ${diff>0?`<span class="countdown-unit">days</span>`:''}
         </div>
       </div>
+      <button class="edit-btn" onclick="openEditCountdown('${id}')">✏️</button>
       <button class="countdown-del" onclick="deleteCountdown('${id}')">✕</button>`;
     strip.appendChild(chip);
   });
@@ -1297,20 +1301,38 @@ function renderCountdownStrip(){
   strip.appendChild(addBtn);
 }
 function openCountdownModal(){
+  _editingCountdownId=null;
+  document.getElementById('countdown-modal-title').textContent='⏳ Add Countdown';
+  document.getElementById('countdown-save-btn').textContent='Add';
   document.getElementById('cd-icon').value='⏳';
   document.getElementById('cd-label').value='';
   document.getElementById('cd-date').value='';
   document.getElementById('countdown-modal').classList.add('open');
 }
-function closeCountdownModal(){document.getElementById('countdown-modal').classList.remove('open');}
+function openEditCountdown(id){
+  const cd=countdowns[id];if(!cd)return;
+  _editingCountdownId=id;
+  document.getElementById('countdown-modal-title').textContent='⏳ Edit Countdown';
+  document.getElementById('countdown-save-btn').textContent='Save Changes';
+  document.getElementById('cd-icon').value=cd.icon||'⏳';
+  document.getElementById('cd-label').value=cd.label||'';
+  document.getElementById('cd-date').value=cd.targetDate||'';
+  document.getElementById('countdown-modal').classList.add('open');
+}
 async function saveCountdown(){
   const icon=document.getElementById('cd-icon').value.trim()||'⏳';
   const label=document.getElementById('cd-label').value.trim();
   const targetDate=document.getElementById('cd-date').value;
   if(!label||!targetDate){showToast('Please fill in label and date');return;}
-  await dbPush('countdowns',{icon,label,targetDate,created:Date.now()});
-  closeCountdownModal();showToast('⏳ Countdown added!');
+  if(_editingCountdownId){
+    await dbSet(`countdowns/${_editingCountdownId}`,{...countdowns[_editingCountdownId],icon,label,targetDate});
+    closeCountdownModal();showToast('⏳ Countdown updated!');
+  }else{
+    await dbPush('countdowns',{icon,label,targetDate,created:Date.now()});
+    closeCountdownModal();showToast('⏳ Countdown added!');
+  }
 }
+function closeCountdownModal(){_editingCountdownId=null;document.getElementById('countdown-modal').classList.remove('open');}
 async function deleteCountdown(id){await dbRemove(`countdowns/${id}`);}
 
 // ── WEEK ──
@@ -1354,7 +1376,7 @@ function renderSelectedDay(){
       <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
       <div style="flex:1"><div class="sel-event-title">${isCal?'📅 ':''}${e.title}${isRecurring?'<span class="sel-recurring-badge">🔁</span>':''}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
       <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person}${isCal?' · Calendar':' · '+capitalize(e.type)}</div></div>
-      ${!isCal?`<button class="delete-btn" onclick="deleteEvent('${id}')">✕</button>`:''}</div>`;
+      ${!isCal?`<button class="edit-btn" onclick="openEditEvent('${id}')">✏️</button><button class="delete-btn" onclick="deleteEvent('${id}')">✕</button>`:''}</div>`;
   }).join('');
 }
 async function deleteEvent(id){await dbRemove(`events/${id}`);}
@@ -1434,6 +1456,7 @@ function renderChores(){
         ${isAssigned&&(!complete||freq===0)?`<button class="chore-add-btn" onclick="logChore('${id}')">I'll get it</button>`
           :complete?'<span style="color:#06d6a0;font-size:.8rem;font-weight:700;">✓ Done!</span>'
           :'<span style="font-size:.75rem;color:var(--muted);">Not assigned</span>'}
+        <button class="edit-btn" onclick="openEditChore('${id}')">✏️</button>
         <button class="delete-btn" onclick="deleteChore('${id}')">✕</button>
       </div></div>
       ${counterChips?`<div class="chore-counters">${counterChips}</div>`:''}
@@ -1499,6 +1522,9 @@ async function deleteChore(id){
   await dbRemove(`chores/${id}`);await dbRemove(`choreLog/${todayStr}/${id}`);
 }
 function openAddChoreModal(){
+  _editingChoreId=null;
+  document.getElementById('chore-modal-title').textContent='Add Chore';
+  document.getElementById('chore-save-btn').textContent='Add Chore';
   document.getElementById('new-chore-name').value='';
   document.getElementById('new-chore-icon').value='';
   document.getElementById('new-chore-freq').value='1';
@@ -1509,19 +1535,40 @@ function openAddChoreModal(){
   grid.innerHTML=MEMBERS.map(m=>`<label class="assign-chip"><input type="checkbox" name="chore-assign" value="${m.key}"><span>${m.emoji} ${m.key}</span></label>`).join('');
   document.getElementById('add-chore-modal').classList.add('open');
 }
-function closeAddChoreModal(){document.getElementById('add-chore-modal').classList.remove('open');}
+function openEditChore(id){
+  const c=chores[id];if(!c)return;
+  _editingChoreId=id;
+  document.getElementById('chore-modal-title').textContent='Edit Chore';
+  document.getElementById('chore-save-btn').textContent='Save Changes';
+  document.getElementById('new-chore-name').value=c.name||'';
+  document.getElementById('new-chore-icon').value=c.icon||'';
+  document.getElementById('new-chore-freq').value=c.freq??1;
+  document.getElementById('new-chore-time').value=c.time||'';
+  document.getElementById('new-chore-due').value=c.dueBy||'';
+  document.getElementById('new-chore-points').value=c.points||1;
+  const grid=document.getElementById('chore-assign-grid');
+  grid.innerHTML=MEMBERS.map(m=>`<label class="assign-chip"><input type="checkbox" name="chore-assign" value="${m.key}"${(c.assignedTo||[]).includes(m.key)?' checked':''}><span>${m.emoji} ${m.key}</span></label>`).join('');
+  document.getElementById('add-chore-modal').classList.add('open');
+}
+function closeAddChoreModal(){_editingChoreId=null;document.getElementById('add-chore-modal').classList.remove('open');}
 function closeAddChoreBackdrop(e){if(e.target===document.getElementById('add-chore-modal'))closeAddChoreModal();}
 async function saveNewChore(){
   const name=document.getElementById('new-chore-name').value.trim();
   const icon=document.getElementById('new-chore-icon').value.trim()||'✅';
-  const freq=document.getElementById('new-chore-freq').value;
+  const freq=parseInt(document.getElementById('new-chore-freq').value);
   const choreTime=document.getElementById('new-chore-time').value;
   const choreDue=document.getElementById('new-chore-due').value;
   const pts=parseInt(document.getElementById('new-chore-points').value)||1;
   if(!name){showToast('Please enter a chore name');return;}
   const checked=[...document.querySelectorAll('input[name="chore-assign"]:checked')].map(c=>c.value);
-  await dbPush('chores',{name,icon,freq:parseInt(freq),time:choreTime||null,dueBy:choreDue||null,points:pts,assignedTo:checked.length?checked:null,created:Date.now()});
-  closeAddChoreModal();showToast(`✅ "${name}" added`);
+  const data={name,icon,freq,time:choreTime||null,dueBy:choreDue||null,points:pts,assignedTo:checked.length?checked:null};
+  if(_editingChoreId){
+    await dbSet(`chores/${_editingChoreId}`,{...chores[_editingChoreId],...data});
+    closeAddChoreModal();showToast(`✅ "${name}" updated`);
+  }else{
+    await dbPush('chores',{...data,created:Date.now()});
+    closeAddChoreModal();showToast(`✅ "${name}" added`);
+  }
 }
 function showChoreHistory(choreId){
   const choreName=chores[choreId]?.name||choreId;
@@ -1587,6 +1634,7 @@ function renderPointsTab(){
       <div class="reward-item"><span class="reward-icon">${r.icon||'🏆'}</span>
         <span class="reward-name">${r.name}</span><span class="reward-cost">&#11088;${r.cost}</span>
         <button class="chore-add-btn" style="font-size:.72rem;padding:3px 8px;" onclick="redeemReward('${id}')">Redeem</button>
+        <button class="edit-btn" onclick="openEditReward('${id}')">✏️</button>
         <button class="reward-del" onclick="deleteReward('${id}')">✕</button></div>`).join('')
       :'<div class="empty-state">No rewards yet.</div>'}</div>
       <button class="btn btn-yellow" style="font-size:.75rem;padding:5px 10px;margin-top:4px;" onclick="openRewardModal()">+ Add Reward</button>`;
@@ -1602,14 +1650,35 @@ function renderPointsTab(){
         </div></div>`;}).join('')}</div>`;
   }
 }
-function openRewardModal(){document.getElementById('rwd-icon').value='🏆';document.getElementById('rwd-name').value='';document.getElementById('rwd-cost').value='10';document.getElementById('reward-modal').classList.add('open');}
-function closeRewardModal(){document.getElementById('reward-modal').classList.remove('open');}
+function openRewardModal(){
+  _editingRewardId=null;
+  document.getElementById('reward-modal-title').textContent='🏆 Add Reward';
+  document.getElementById('reward-save-btn').textContent='Add Reward';
+  document.getElementById('rwd-icon').value='🏆';document.getElementById('rwd-name').value='';document.getElementById('rwd-cost').value='10';
+  document.getElementById('reward-modal').classList.add('open');
+}
+function openEditReward(id){
+  const r=rewards[id];if(!r)return;
+  _editingRewardId=id;
+  document.getElementById('reward-modal-title').textContent='🏆 Edit Reward';
+  document.getElementById('reward-save-btn').textContent='Save Changes';
+  document.getElementById('rwd-icon').value=r.icon||'🏆';
+  document.getElementById('rwd-name').value=r.name||'';
+  document.getElementById('rwd-cost').value=r.cost||10;
+  document.getElementById('reward-modal').classList.add('open');
+}
+function closeRewardModal(){_editingRewardId=null;document.getElementById('reward-modal').classList.remove('open');}
 async function saveReward(){
   const icon=document.getElementById('rwd-icon').value.trim()||'🏆';
   const name=document.getElementById('rwd-name').value.trim();
   const cost=parseInt(document.getElementById('rwd-cost').value)||10;
   if(!name){showToast('Enter a reward name');return;}
-  await dbPush('rewards',{icon,name,cost,created:Date.now()});closeRewardModal();showToast('Reward added!');
+  if(_editingRewardId){
+    await dbSet(`rewards/${_editingRewardId}`,{...rewards[_editingRewardId],icon,name,cost});
+    closeRewardModal();showToast('Reward updated!');
+  }else{
+    await dbPush('rewards',{icon,name,cost,created:Date.now()});closeRewardModal();showToast('Reward added!');
+  }
 }
 async function deleteReward(id){await dbRemove(`rewards/${id}`);}
 async function redeemReward(id){
@@ -1668,7 +1737,27 @@ function openModal(){
   document.getElementById('evt-recurring-end').value='';
   if(currentUser&&currentUser.name!=='Guest')document.getElementById('evt-person').value=currentUser.name;
 }
-function closeModal(){document.getElementById('modal-backdrop').classList.remove('open');}
+function closeModal(){
+  _editingEventId=null;
+  document.getElementById('event-modal-title').textContent='Add Event';
+  document.getElementById('event-save-btn').textContent='Save Event';
+  document.getElementById('modal-backdrop').classList.remove('open');
+}
+function openEditEvent(id){
+  const e=events[id];if(!e)return;
+  _editingEventId=id;
+  document.getElementById('event-modal-title').textContent='Edit Event';
+  document.getElementById('event-save-btn').textContent='Save Changes';
+  document.getElementById('evt-person').value=e.person||'Bradford';
+  document.getElementById('evt-title').value=e.title||'';
+  document.getElementById('evt-date').value=e.date||'';
+  document.getElementById('evt-time').value=e.time||'';
+  document.getElementById('evt-type').value=e.type||'personal';
+  document.getElementById('evt-recurring').value=e.recurring||'none';
+  document.getElementById('evt-recurring-end').value=e.recurringEnd||'';
+  toggleRecurringEnd();
+  document.getElementById('modal-backdrop').classList.add('open');
+}
 function closeModalBackdrop(e){if(e.target===document.getElementById('modal-backdrop'))closeModal();}
 async function saveEvent(){
   const person=document.getElementById('evt-person').value;
@@ -1679,9 +1768,14 @@ async function saveEvent(){
   const recurring=document.getElementById('evt-recurring').value;
   const recurringEnd=document.getElementById('evt-recurring-end').value||null;
   if(!title||!date){showToast('Please fill in a title and date');return;}
-  await dbPush('events',{person,title,date,time,type,recurring,recurringEnd,created:Date.now()});
-  closeModal();showToast(`Event added for ${person}`);
-  document.getElementById('evt-title').value='';document.getElementById('evt-time').value='';
+  if(_editingEventId){
+    await dbSet(`events/${_editingEventId}`,{...events[_editingEventId],person,title,date,time,type,recurring,recurringEnd});
+    closeModal();showToast('Event updated');
+  }else{
+    await dbPush('events',{person,title,date,time,type,recurring,recurringEnd,created:Date.now()});
+    closeModal();showToast(`Event added for ${person}`);
+    document.getElementById('evt-title').value='';document.getElementById('evt-time').value='';
+  }
 }
 
 // ── WEATHER ──
