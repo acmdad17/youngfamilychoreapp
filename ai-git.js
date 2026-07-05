@@ -2,6 +2,8 @@ import "dotenv/config";
 import fs from "fs-extra";
 import simpleGit from "simple-git";
 import OpenAI from "openai";
+import readline from "readline";
+import { globSync } from "glob";
 
 const git = simpleGit();
 
@@ -16,41 +18,69 @@ if (!task) {
   process.exit(1);
 }
 
-// 1. Get repo status
-const status = await git.status();
-const files = status.modified.concat(status.not_added);
+function askYesNo(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
 
-// 2. Build context (limit for safety)
+  return new Promise(resolve => {
+    rl.question(question + " (y/n): ", answer => {
+      rl.close();
+      resolve(answer.toLowerCase() === "y");
+    });
+  });
+}
+
+console.log("\n🔍 Scanning real project files...\n");
+
+// 🚨 REAL FILE DISCOVERY (this fixes EVERYTHING)
+const files = globSync("**/*", {
+  ignore: [
+    "node_modules/**",
+    ".git/**",
+    ".env",
+    "**/*.lock"
+  ],
+  nodir: true
+});
+
+console.log("📁 Files found:");
+console.log(files.slice(0, 30));
+
+// Read small context only
 let context = "";
 
-for (const file of files.slice(0, 5)) {
+for (const file of files.slice(0, 10)) {
   try {
     const content = await fs.readFile(file, "utf8");
     context += `\n--- ${file} ---\n${content}\n`;
   } catch {}
 }
 
-// 3. Ask AI for a file edit plan (NOT a patch anymore)
+// 🚨 CRITICAL: AI must pick ONLY from this list
 const response = await client.chat.completions.create({
   model: "gpt-4.1-mini",
   messages: [
     {
       role: "system",
       content: `
-You are a senior software engineer.
+You are a senior software engineer working inside a real codebase.
 
-You must return ONLY valid JSON in this format:
+YOU MUST FOLLOW THESE RULES:
+- You can ONLY edit files from this list:
+${files.join("\n")}
+
+- NEVER invent file paths
+- NEVER create new files
+- If no file fits, return null
+
+Return ONLY valid JSON:
 
 {
-  "file": "path/to/file",
+  "file": "exact path from list",
   "content": "FULL updated file content"
 }
-
-Rules:
-- Output ONLY JSON
-- No markdown
-- No explanations
-- Always return complete file content (not diffs)
 `
     },
     {
@@ -59,7 +89,7 @@ Rules:
 TASK:
 ${task}
 
-CONTEXT:
+CODE CONTEXT:
 ${context}
 `
     }
@@ -71,32 +101,47 @@ let result;
 try {
   result = JSON.parse(response.choices[0].message.content);
 } catch (err) {
-  console.log("\n❌ AI did not return valid JSON");
+  console.log("\n❌ AI returned invalid JSON:");
   console.log(response.choices[0].message.content);
   process.exit(1);
 }
 
-console.log("\n--- AI FILE EDIT ---");
-console.log("File:", result.file);
-
-// 4. Write file safely
-try {
-  await fs.writeFile(result.file, result.content, "utf8");
-  console.log("\n✅ File updated safely");
-} catch (err) {
-  console.log("\n❌ Failed writing file");
-  console.log(err.message);
+// 🚨 VALIDATION (this prevents your current crash loop)
+if (!result.file || !files.includes(result.file)) {
+  console.log("\n🚫 Invalid or unknown file selected:");
+  console.log(result.file);
   process.exit(1);
 }
 
-// 5. Git commit flow (safe)
+if (!result.content || result.content.length < 10) {
+  console.log("\n🚫 Invalid file content");
+  process.exit(1);
+}
+
+// PREVIEW
+console.log("\n--- FILE TO MODIFY ---");
+console.log(result.file);
+
+console.log("\n--- PREVIEW ---");
+console.log(result.content.slice(0, 800));
+
+const confirm = await askYesNo("\nApply this change?");
+if (!confirm) {
+  console.log("❌ Cancelled");
+  process.exit(0);
+}
+
+// WRITE
+await fs.writeFile(result.file, result.content, "utf8");
+
+console.log("\n✅ File updated");
+
+// COMMIT
 try {
   await git.add(".");
   await git.commit(task);
   await git.push();
-
-  console.log("\n🚀 Changes committed and pushed");
+  console.log("\n🚀 Committed + pushed");
 } catch (err) {
-  console.log("\n❌ Git commit failed");
-  console.log(err.message);
+  console.log("\n❌ Git error:", err.message);
 }
