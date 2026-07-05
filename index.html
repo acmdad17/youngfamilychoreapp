@@ -16,6 +16,8 @@
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import { getAuth, signInAnonymously }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getMessaging, getToken, onMessage }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBmvRv99OG5qK9P2MVCoBUTILvRX8v56P0",
@@ -27,12 +29,13 @@
     appId: "1:224373739078:web:49d5a5391fe42b41770447"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db  = getDatabase(app);
-  const auth = getAuth(app);
+  const app       = initializeApp(firebaseConfig);
+  const db        = getDatabase(app);
+  const auth      = getAuth(app);
+  const messaging = getMessaging(app);
 
   window._fb = {
-    ref, onValue, set, push, update, remove, get, runTransaction, db,
+    ref, onValue, set, push, update, remove, get, runTransaction, db, messaging, getToken, onMessage,
     eventsRef:        () => ref(db, 'events'),
     choresRef:        () => ref(db, 'chores'),
     groceriesRef:     () => ref(db, 'groceries'),
@@ -1174,8 +1177,42 @@ function startApp(){
   checkDailyReset();
   fetchAllIcalFeeds();
   initTabs();
-  if(currentUser.name!=='Guest')
+  if(currentUser.name!=='Guest'){
     setTimeout(()=>{if(typeof Notification==='undefined'||Notification.permission==='default')showToast(`👋 Hi ${currentUser.name} — tap 🔔 for event reminders.`,5000);},1500);
+    subscribePush();
+  }
+}
+
+// ── PUSH NOTIFICATIONS ──
+// VAPID_KEY: get from Firebase Console → Project Settings → Cloud Messaging
+// → Web Push certificates → Key pair value
+const VAPID_KEY = 'YOUR_VAPID_KEY_HERE';
+
+async function subscribePush(){
+  if(!('Notification' in window)||!window._fb?.messaging)return;
+  try{
+    // Get or reuse a stable device ID for token storage
+    let deviceId=localStorage.getItem('young_device_id');
+    if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem('young_device_id',deviceId);}
+
+    const permission=await Notification.requestPermission();
+    if(permission!=='granted')return;
+
+    const {messaging,getToken,onMessage,ref,set,db}=window._fb;
+    const token=await getToken(messaging,{
+      vapidKey:VAPID_KEY,
+      serviceWorkerRegistration:await navigator.serviceWorker.ready,
+    });
+    if(token)await set(ref(db,`fcmTokens/${deviceId}`),token);
+
+    // Show in-app alerts while the app is open
+    onMessage(messaging,payload=>{
+      const{title,body}=payload.notification||{};
+      showToast(`${title}${body?' — '+body:''}`);
+    });
+  }catch(e){
+    console.warn('Push subscription failed:',e);
+  }
 }
 
 function renderAll(){

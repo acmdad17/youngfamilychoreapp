@@ -1,26 +1,65 @@
-const CACHE = 'young-fam-v4';
+// ── FIREBASE MESSAGING (background push) ──
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey:            "AIzaSyBmvRv99OG5qK9P2MVCoBUTILvRX8v56P0",
+  authDomain:        "young-family-770d5.firebaseapp.com",
+  databaseURL:       "https://young-family-770d5-default-rtdb.firebaseio.com",
+  projectId:         "young-family-770d5",
+  storageBucket:     "young-family-770d5.firebasestorage.app",
+  messagingSenderId: "224373739078",
+  appId:             "1:224373739078:web:49d5a5391fe42b41770447",
+});
+
+const messaging = firebase.messaging();
+
+// Called when a push arrives while the app is backgrounded or closed.
+messaging.onBackgroundMessage(payload => {
+  const { title, body } = payload.notification || {};
+  return self.registration.showNotification(title || '🏠 Young Family', {
+    body:    body || '',
+    vibrate: [300, 100, 300, 100, 300],
+    tag:     payload.data?.type || 'alert',
+    renotify: true,
+    data:    payload.data || {},
+  });
+});
+
+// Tap notification → focus/open the app
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const appUrl = 'https://acmdad17.github.io/youngfamilychoreapp/';
+      const existing = list.find(c => c.url.startsWith(appUrl));
+      if (existing) return existing.focus();
+      return clients.openWindow(appUrl);
+    })
+  );
+});
+
+// ── CACHE ──
+const CACHE  = 'young-fam-v5';
 const STATIC = [
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;800&display=swap',
 ];
 
-// Install: cache static assets only (NOT index.html)
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
   );
 });
 
-// Activate: clean up old caches and take over all clients immediately
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
       .then(() => {
-        // Tell all clients to reload so they get fresh HTML
-        return self.clients.matchAll({type:'window'}).then(clients => {
-          clients.forEach(c => c.postMessage({type:'SW_UPDATED'}));
+        return self.clients.matchAll({ type: 'window' }).then(cs => {
+          cs.forEach(c => c.postMessage({ type: 'SW_UPDATED' }));
         });
       })
   );
@@ -29,15 +68,11 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Always network-first for HTML pages (so index.html is never stale)
   if (e.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname === '/') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
 
-  // Always network-first for Firebase, weather, HA, Google APIs
   const networkFirst = [
     'firebaseio.com', 'firebasestorage.app', 'googleapis.com',
     'open-meteo.com', 'nabu.casa', 'gstatic.com',
@@ -48,7 +83,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for other static assets (fonts, manifest, etc.)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
