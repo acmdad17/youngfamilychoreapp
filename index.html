@@ -1186,17 +1186,14 @@ function startApp(){
 // ── PUSH NOTIFICATIONS ──
 // VAPID_KEY: get from Firebase Console → Project Settings → Cloud Messaging
 // → Web Push certificates → Key pair value
-const VAPID_KEY = 'YOUR_VAPID_KEY_HERE';
+const VAPID_KEY = 'BJXB0b2Y437M9d85qY4LIwRAQS0ieyBEmfxM7IO8X6ALyfY2qkCSWr1_VR-3WilURrXzvtHt6UROu00QwmaBsOI';
 
+// Never auto-prompts — iOS requires a user gesture. Called after permission granted.
 async function subscribePush(){
-  if(!('Notification' in window)||!window._fb?.messaging)return;
+  if(!('Notification' in window)||Notification.permission!=='granted'||!window._fb?.messaging)return;
   try{
-    // Get or reuse a stable device ID for token storage
     let deviceId=localStorage.getItem('young_device_id');
     if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem('young_device_id',deviceId);}
-
-    const permission=await Notification.requestPermission();
-    if(permission!=='granted')return;
 
     const {messaging,getToken,onMessage,ref,set,db}=window._fb;
     const token=await getToken(messaging,{
@@ -1205,7 +1202,7 @@ async function subscribePush(){
     });
     if(token)await set(ref(db,`fcmTokens/${deviceId}`),token);
 
-    // Show in-app alerts while the app is open
+    // Show in-app toast when push arrives while app is open
     onMessage(messaging,payload=>{
       const{title,body}=payload.notification||{};
       showToast(`${title}${body?' — '+body:''}`);
@@ -1856,6 +1853,7 @@ async function requestNotifications(){
     await swNotify(`Hey ${currentUser?.name||'there'}! 👋`,'Young Family Dashboard alerts are now on. You\'ll get 15-min event reminders.','welcome');
     showToast('🔔 Alerts on');
     scheduleNotifications();
+    subscribePush(); // register for FCM push after user grants permission
   } else {
     showToast('Blocked — check your browser notification settings.');
   }
