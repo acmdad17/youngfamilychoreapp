@@ -912,7 +912,13 @@
 
   <div class="main">
     <!-- Filter chips -->
-    <div id="filter-chips" data-tab="home" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    <div id="filter-chips" data-tab="home" style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:var(--text-xs);font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;">Showing</label>
+      <select id="member-filter-select" onchange="setFilterMember(this.value||null)"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);
+          padding:6px 10px;color:var(--text);font-family:var(--font-body);font-size:var(--text-sm);
+          font-weight:600;outline:none;cursor:pointer;min-width:140px;"></select>
+    </div>
 
     <!-- Countdown strip -->
     <div id="countdown-strip" data-tab="home"></div>
@@ -1379,15 +1385,11 @@ function renderAll(){
 
 // ── FILTER CHIPS ──
 function renderFilterChips(){
-  const el=document.getElementById('filter-chips');if(!el)return;
-  const all=[{key:null,label:'All 👨‍👩‍👧‍👦',color:'#8b949e'},...MEMBERS.map(m=>({key:m.key,label:m.emoji+' '+m.key,color:m.color}))];
-  el.innerHTML=all.map(c=>{
-    const active=filterMember===c.key;
-    const style=active?`background:${c.color}22;border-color:${c.color};color:${c.color}`:'';
-    return`<div class="person-filter-chip" style="${style}" onclick="setFilterMember(${c.key===null?'null':`'${c.key}'`})">${c.label}</div>`;
-  }).join('');
+  const sel=document.getElementById('member-filter-select');if(!sel)return;
+  const all=[{key:'',label:'Everyone'},...MEMBERS.map(m=>({key:m.key,label:m.emoji+' '+m.key}))];
+  sel.innerHTML=all.map(c=>`<option value="${c.key}"${filterMember===c.key?'selected':''}>${c.label}</option>`).join('');
 }
-function setFilterMember(m){filterMember=m;renderFilterChips();renderWeek();renderSelectedDay();renderMembers();}
+function setFilterMember(m){filterMember=m||null;renderFilterChips();renderWeek();renderSelectedDay();renderMembers();}
 
 // ── DAILY RESET ──
 async function checkDailyReset(){
