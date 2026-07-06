@@ -630,6 +630,59 @@
   ::-webkit-scrollbar{width:4px;}
   ::-webkit-scrollbar-track{background:transparent;}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  /* ── TV MODE ── */
+  body.tv-mode header,
+  body.tv-mode #announcements-bar,
+  body.tv-mode #my-day-banner,
+  body.tv-mode .tab-bar,
+  body.tv-mode .btn:not(.alert-claim-btn):not(.alert-dismiss),
+  body.tv-mode .chore-add-btn,
+  body.tv-mode .countdown-add-btn,
+  body.tv-mode .countdown-del,
+  body.tv-mode .annc-add-btn,
+  body.tv-mode .annc-close,
+  body.tv-mode .edit-btn,
+  body.tv-mode .delete-btn,
+  body.tv-mode .add-grocery-row,
+  body.tv-mode .chore-history-btn,
+  body.tv-mode .reward-del,
+  body.tv-mode .meal-edit-btn,
+  body.tv-mode #fb-setup-banner,
+  body.tv-mode .tab-btns,
+  body.tv-mode .notif-btn,
+  body.tv-mode [onclick="openModal()"],
+  body.tv-mode [onclick="openIcalModal()"],
+  body.tv-mode [onclick="openAddChoreModal()"],
+  body.tv-mode [onclick="openAnnouncementModal()"]{display:none!important;}
+
+  body.tv-mode .main{padding:12px 24px 24px;grid-template-columns:1fr 1fr 1fr;}
+  body.tv-mode .panel-title{font-size:var(--text-sm);}
+  body.tv-mode .chore-name{font-size:1rem;}
+  body.tv-mode .pts-val{font-size:2rem;}
+  body.tv-mode .sel-day-num{font-size:4rem;}
+
+  /* TV clock overlay */
+  #tv-clock{display:none;position:fixed;top:0;left:0;right:0;z-index:200;
+    padding:20px 40px;display:flex;align-items:center;justify-content:space-between;
+    background:linear-gradient(to bottom,rgba(15,18,22,.9),transparent);pointer-events:none;}
+  #tv-clock.hidden{display:none!important;}
+  .tv-time{font-family:var(--font-display);font-size:3rem;font-weight:800;letter-spacing:-.03em;color:var(--text);}
+  .tv-date{font-family:var(--font-display);font-size:1rem;font-weight:600;color:var(--muted);text-align:right;line-height:1.5;}
+  .tv-badge{font-size:var(--text-xs);font-weight:700;color:var(--primary);letter-spacing:.1em;
+    text-transform:uppercase;background:var(--primary-soft);padding:4px 10px;border-radius:var(--radius-full);}
+
+  /* Bigger alert card for TV */
+  body.tv-mode .alert-card{padding:60px 80px;max-width:700px;}
+  body.tv-mode .alert-icon{font-size:5rem;}
+  body.tv-mode .alert-title{font-size:3.2rem;}
+  body.tv-mode .alert-body{font-size:1.4rem;}
+  body.tv-mode .alert-claim-btn,body.tv-mode .alert-dismiss{font-size:1.2rem;padding:18px 48px;}
+  body.tv-mode .alert-who{font-size:1.4rem;}
+
+  /* TV countdown timer on alert */
+  #tv-alert-timer{position:absolute;top:16px;right:20px;font-family:var(--font-display);
+    font-size:1.4rem;font-weight:800;color:var(--muted);opacity:.6;}
   /* History entries */
   .history-entry{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
   .history-date{font-size:var(--text-xs);color:var(--muted);min-width:70px;}
@@ -1062,9 +1115,19 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- TV CLOCK BAR -->
+<div id="tv-clock" class="hidden">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="tv-badge">📺 Young HQ</div>
+  </div>
+  <div class="tv-time" id="tv-time-display">12:00</div>
+  <div class="tv-date" id="tv-date-display"></div>
+</div>
+
 <!-- PERSISTENT ALERT OVERLAY -->
 <div id="alert-overlay" onclick="if(event.target===this)handleAlertDismiss()">
-  <div class="alert-card" id="alert-card">
+  <div class="alert-card" id="alert-card" style="position:relative;">
+    <div id="tv-alert-timer" style="display:none;"></div>
     <div class="alert-icon" id="alert-icon">✅</div>
     <div class="alert-title" id="alert-title"></div>
     <div class="alert-body" id="alert-body"></div>
@@ -1137,6 +1200,33 @@ function eventOccursOn(evt,dateStr){
   if(evt.recurring==='weekdays') return dow>=1&&dow<=5;
   if(evt.recurring==='weekends') return dow===0||dow===6;
   return evt.date===dateStr;
+}
+
+// ── TV MODE ──
+const TV_MODE=new URLSearchParams(location.search).has('tv');
+let _tvDismissTimer=null;
+
+function initTVMode(){
+  document.body.classList.add('tv-mode');
+  document.getElementById('tv-clock').classList.remove('hidden');
+  updateTVClock();
+  setInterval(updateTVClock,1000);
+  // Keep screen awake via Wake Lock API where supported
+  if('wakeLock' in navigator){
+    const requestWake=()=>navigator.wakeLock.request('screen').catch(()=>{});
+    requestWake();
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWake();});
+  }
+}
+
+function updateTVClock(){
+  const now=new Date();
+  const h=now.getHours(),m=now.getMinutes();
+  const ampm=h>=12?'PM':'AM';
+  const h12=h%12||12;
+  document.getElementById('tv-time-display').textContent=`${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+  document.getElementById('tv-date-display').textContent=
+    now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 }
 
 // ── FIREBASE INIT ──
@@ -1266,6 +1356,13 @@ async function dbTransaction(path,updateFn){
 
 // ── WELCOME & USER SELECTION ──
 function showWelcome(){
+  if(TV_MODE){
+    // Skip picker entirely — boot as display-only guest
+    currentUser={name:'TV',emoji:'📺',color:'#10b981',cls:'guest'};
+    initTVMode();
+    startApp();
+    return;
+  }
   buildPicker();
   if(currentUser){startApp();}
   else{const ws=document.getElementById('welcome-screen');ws.style.display='flex';}
@@ -2340,6 +2437,9 @@ function handleAlertDismiss(){
 
 function closeFamilyAlertOverlay(){
   currentAlertId=null;
+  clearInterval(_tvDismissTimer);
+  const timerEl=document.getElementById('tv-alert-timer');
+  if(timerEl)timerEl.style.display='none';
   document.getElementById('alert-overlay').classList.remove('open');
 }
 
@@ -2356,6 +2456,23 @@ function showFamilyAlertOverlay(id,alert){
   document.getElementById('alert-overlay').classList.add('open');
   playDing();
   if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
+  // TV mode: auto-dismiss with visible countdown
+  if(TV_MODE){
+    clearInterval(_tvDismissTimer);
+    let remaining=30;
+    const timerEl=document.getElementById('tv-alert-timer');
+    timerEl.style.display='block';
+    timerEl.textContent=remaining;
+    _tvDismissTimer=setInterval(()=>{
+      remaining--;
+      timerEl.textContent=remaining;
+      if(remaining<=0){
+        clearInterval(_tvDismissTimer);
+        timerEl.style.display='none';
+        closeFamilyAlertOverlay();
+      }
+    },1000);
+  }
 }
 
 function handleAlertsUpdate(newAlerts){
