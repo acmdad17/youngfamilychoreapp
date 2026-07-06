@@ -47,7 +47,9 @@
     pointsRef:        () => ref(db, 'points'),
     rewardsRef:       () => ref(db, 'rewards'),
     familyAlertsRef:  () => ref(db, 'familyAlerts'),
-    allowanceRef:     () => ref(db, 'allowance'),
+    allowanceRef:         () => ref(db, 'allowance'),
+    pointsLedgerRef:      () => ref(db, 'pointsLedger'),
+    redeemRequestsRef:    () => ref(db, 'redeemRequests'),
   };
 
   // Sign in anonymously before allowing any database access.
@@ -325,6 +327,23 @@
   .event-time{color:var(--text);font-weight:600;white-space:nowrap;}
   .member-pts{font-size:.72rem;font-weight:700;color:#ffd166;margin-top:4px;}
 
+  /* DAYS GRID (chore scheduling) */
+  .days-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+  .day-chip input{display:none;}
+  .day-chip span{display:inline-block;padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:700;
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:.15s;}
+  .day-chip input:checked+span{background:rgba(6,214,160,.2);border-color:#06d6a0;color:#06d6a0;}
+  /* LEDGER */
+  .ledger-entry{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:8px;font-size:.78rem;}
+  .ledger-delta{font-weight:700;min-width:42px;text-align:right;}
+  .ledger-reason{flex:1;color:var(--text);}
+  .ledger-date{font-size:.65rem;color:var(--muted);white-space:nowrap;}
+  /* REDEEM REQUESTS */
+  .redeem-req{display:flex;align-items:center;gap:8px;padding:8px 10px;
+    background:rgba(255,209,102,.07);border:1px solid rgba(255,209,102,.25);border-radius:10px;}
+  .redeem-req-info{flex:1;}
+  .redeem-req-person{font-size:.82rem;font-weight:700;}
+  .redeem-req-detail{font-size:.72rem;color:var(--muted);}
   /* POINTS PANEL */
   .points-panel{grid-column:3/4;}
   .tab-btns{display:flex;gap:4px;background:var(--surface2);border-radius:10px;padding:3px;}
@@ -604,6 +623,9 @@
       <div class="form-group"><label>Scheduled Time (optional)</label><input type="time" id="new-chore-time"></div>
       <div class="form-group"><label>Due By (optional)</label><input type="time" id="new-chore-due"></div>
     </div>
+    <div class="form-group"><label>Active Days <span style="font-size:.68rem;color:var(--muted);">(leave all unchecked = every day)</span></label>
+      <div class="days-grid" id="chore-days-grid"></div>
+    </div>
     <div class="form-group"><label>Assign To (leave blank = anyone)</label>
       <div class="assign-grid" id="chore-assign-grid"></div>
     </div>
@@ -835,6 +857,7 @@
         <button class="tab-btn active" onclick="setPointsTab('points',this)">Points</button>
         <button class="tab-btn" onclick="setPointsTab('rewards',this)">Rewards</button>
         <button class="tab-btn" onclick="setPointsTab('allowance',this)">Allowance</button>
+        <button class="tab-btn" onclick="setPointsTab('ledger',this)">Ledger</button>
       </div>
       <div id="points-tab-content"></div>
     </div>
@@ -944,11 +967,16 @@ let rewards={};
 let streaks={};
 let calEvents={};
 let allowance={};
+let pointsLedger={};
+let redeemRequests={};
 
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
 let filterMember=null;
+const PARENTS=['Bradford','Brooke'];
+const isParent=()=>currentUser&&PARENTS.includes(currentUser.name);
 let currentPointsTab='points';
+let currentLedgerPerson=null;
 let _editingChoreId=null,_editingEventId=null,_editingRewardId=null,_editingCountdownId=null;
 let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
 let haEntities=[];
@@ -1013,7 +1041,9 @@ function subscribeAll(){
     ov(ref(db,'streaks'),       snap=>{streaks      =snap.val()||{};renderChores();renderMembers();renderPointsTab();},noop);
     ov(ref(db,'calEvents'),     snap=>{calEvents    =snap.val()||{};renderAll();},noop);
     ov(ref(db,'familyAlerts'),  snap=>{familyAlerts =snap.val()||{};handleAlertsUpdate(familyAlerts);},noop);
-    onValue(allowanceRef(),     snap=>{allowance    =snap.val()||{};renderPointsTab();renderMembers();},noop);
+    onValue(allowanceRef(),         snap=>{allowance      =snap.val()||{};renderPointsTab();renderMembers();},noop);
+    ov(ref(db,'pointsLedger'),      snap=>{pointsLedger   =snap.val()||{};renderPointsTab();},noop);
+    ov(ref(db,'redeemRequests'),    snap=>{redeemRequests =snap.val()||{};renderPointsTab();},noop);
   }catch(e){
     console.error('subscribeAll error:',e);
     setSyncStatus('error');
@@ -1451,9 +1481,12 @@ function renderMembers(){
 // ── CHORES ──
 function renderChores(){
   const list=document.getElementById('chores-list');if(!list)return;list.innerHTML='';
+  const todayDow=today.getDay();
   const choreArr=Object.entries(chores);
   if(!choreArr.length){list.innerHTML='<div class="empty-state">No chores yet — add some above!</div>';return;}
-  choreArr.forEach(([id,chore])=>{
+  const visible=choreArr.filter(([,c])=>!c.scheduleDays||!c.scheduleDays.length||c.scheduleDays.includes(todayDow));
+  if(!visible.length){list.innerHTML='<div class="empty-state">No chores scheduled for today.</div>';return;}
+  visible.forEach(([id,chore])=>{
     const todayLog=choreLog[todayStr]?.[id]||{};
     const counts={};
     Object.values(todayLog).forEach(entry=>{counts[entry.person]=(counts[entry.person]||0)+1;});
@@ -1482,7 +1515,7 @@ function renderChores(){
           ${chore.time?`<span style="font-size:.65rem;color:var(--muted);margin-left:4px">&#9200; ${formatTime(chore.time)}</span>`:''}
           ${buildChoreStreakBadges(id)}
         </div>
-        <div class="chore-freq">${freq>0?`${totalDone}/${freq} today`:'Done '+totalDone+' time'+(totalDone!==1?'s':'')+' today'}</div>
+        <div class="chore-freq">${freq>0?`${totalDone}/${freq} today`:'Done '+totalDone+' time'+(totalDone!==1?'s':'')+' today'}${chore.scheduleDays&&chore.scheduleDays.length?` · ${chore.scheduleDays.map(d=>DAY_NAMES[d]).join('/')} only`:''}</div>
         <div class="chore-assigned-badge">${assignedStr}</div>
         ${chore.dueBy?`<span class="chore-deadline ${isOverdue?'overdue':'ok'}">${isOverdue?'&#9873; Overdue':'&#9873; Due'} ${formatTime(chore.dueBy)}</span>`:''}
       </div>
@@ -1504,6 +1537,7 @@ async function logChore(choreId){
   await dbPush(`choreLog/${todayStr}/${choreId}`,{person:currentUser.name,time:new Date().toISOString()});
   const pts=chores[choreId]?.points||1;
   await dbTransaction(`points/${currentUser.name}/total`,cur=>(cur||0)+pts);
+  await dbPush('pointsLedger',{person:currentUser.name,delta:pts,reason:chores[choreId]?.name||choreId,type:'chore',ts:Date.now()});
   const streak=await updateStreak(currentUser.name,choreId);
   if(streak>0&&streak%7===0){
     showAlert('🔥',`${currentUser.name} is on fire`,`${streak}-day streak on "${chores[choreId]?.name}" — keep it up`,'#ff8c42');
@@ -1555,6 +1589,10 @@ async function deleteChore(id){
   if(!confirm('Delete this chore?'))return;
   await dbRemove(`chores/${id}`);await dbRemove(`choreLog/${todayStr}/${id}`);
 }
+const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function buildDaysGrid(checked=[]){
+  return DAY_NAMES.map((d,i)=>`<label class="day-chip"><input type="checkbox" name="chore-day" value="${i}"${checked.includes(i)?' checked':''}><span>${d}</span></label>`).join('');
+}
 function openAddChoreModal(){
   _editingChoreId=null;
   document.getElementById('chore-modal-title').textContent='Add Chore';
@@ -1565,6 +1603,7 @@ function openAddChoreModal(){
   document.getElementById('new-chore-time').value='';
   document.getElementById('new-chore-due').value='';
   document.getElementById('new-chore-points').value='1';
+  document.getElementById('chore-days-grid').innerHTML=buildDaysGrid([]);
   const grid=document.getElementById('chore-assign-grid');
   grid.innerHTML=MEMBERS.map(m=>`<label class="assign-chip"><input type="checkbox" name="chore-assign" value="${m.key}"><span>${m.emoji} ${m.key}</span></label>`).join('');
   document.getElementById('add-chore-modal').classList.add('open');
@@ -1580,6 +1619,7 @@ function openEditChore(id){
   document.getElementById('new-chore-time').value=c.time||'';
   document.getElementById('new-chore-due').value=c.dueBy||'';
   document.getElementById('new-chore-points').value=c.points||1;
+  document.getElementById('chore-days-grid').innerHTML=buildDaysGrid(c.scheduleDays||[]);
   const grid=document.getElementById('chore-assign-grid');
   grid.innerHTML=MEMBERS.map(m=>`<label class="assign-chip"><input type="checkbox" name="chore-assign" value="${m.key}"${(c.assignedTo||[]).includes(m.key)?' checked':''}><span>${m.emoji} ${m.key}</span></label>`).join('');
   document.getElementById('add-chore-modal').classList.add('open');
@@ -1595,7 +1635,9 @@ async function saveNewChore(){
   const pts=parseInt(document.getElementById('new-chore-points').value)||1;
   if(!name){showToast('Please enter a chore name');return;}
   const checked=[...document.querySelectorAll('input[name="chore-assign"]:checked')].map(c=>c.value);
-  const data={name,icon,freq,time:choreTime||null,dueBy:choreDue||null,points:pts,assignedTo:checked.length?checked:null};
+  const days=[...document.querySelectorAll('input[name="chore-day"]:checked')].map(c=>parseInt(c.value));
+  const data={name,icon,freq,time:choreTime||null,dueBy:choreDue||null,points:pts,
+    assignedTo:checked.length?checked:null,scheduleDays:days.length?days:null};
   if(_editingChoreId){
     await dbSet(`chores/${_editingChoreId}`,{...chores[_editingChoreId],...data});
     closeAddChoreModal();showToast(`✅ "${name}" updated`);
@@ -1664,6 +1706,20 @@ function renderPointsTab(){
     }).join('')}</div>`;
   }else if(currentPointsTab==='rewards'){
     const arr=Object.entries(rewards);
+    const pending=Object.entries(redeemRequests).filter(([,r])=>r.status==='pending');
+    const pendingHtml=pending.length?(
+      `<div style="font-size:.72rem;font-weight:700;color:#ffd166;margin:8px 0 4px;">⏳ Pending Requests</div>`+
+      pending.map(([reqId,req])=>`
+        <div class="redeem-req">
+          <div class="redeem-req-info">
+            <div class="redeem-req-person">${req.rewardIcon} ${req.rewardName}</div>
+            <div class="redeem-req-detail">${req.person} · ⭐${req.cost}</div>
+          </div>
+          ${isParent()?`<button class="btn btn-primary" style="font-size:.7rem;padding:3px 8px;" onclick="approveRedeem('${reqId}')">✓</button>
+            <button class="btn" style="font-size:.7rem;padding:3px 8px;" onclick="denyRedeem('${reqId}')">✕</button>`
+            :`<span style="font-size:.72rem;color:var(--muted);">Awaiting approval</span>`}
+        </div>`).join('')
+    ):'';
     el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${arr.length?arr.map(([id,r])=>`
       <div class="reward-item"><span class="reward-icon">${r.icon||'🏆'}</span>
         <span class="reward-name">${r.name}</span><span class="reward-cost">&#11088;${r.cost}</span>
@@ -1671,7 +1727,28 @@ function renderPointsTab(){
         <button class="edit-btn" onclick="openEditReward('${id}')">✏️</button>
         <button class="reward-del" onclick="deleteReward('${id}')">✕</button></div>`).join('')
       :'<div class="empty-state">No rewards yet.</div>'}</div>
+      ${pendingHtml}
       <button class="btn btn-yellow" style="font-size:.75rem;padding:5px 10px;margin-top:4px;" onclick="openRewardModal()">+ Add Reward</button>`;
+  }else if(currentPointsTab==='ledger'){
+    // Pick default person
+    if(!currentLedgerPerson)currentLedgerPerson=currentUser?.name||MEMBERS[0].key;
+    const entries=Object.entries(pointsLedger)
+      .filter(([,e])=>e.person===currentLedgerPerson)
+      .sort((a,b)=>b[1].ts-a[1].ts)
+      .slice(0,40);
+    const personSelect=MEMBERS.map(m=>`<option value="${m.key}"${m.key===currentLedgerPerson?' selected':''}>${m.emoji} ${m.key}</option>`).join('');
+    const rows=entries.length?entries.map(([,e])=>{
+      const d=new Date(e.ts);
+      const label=d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      const pos=e.delta>0;
+      return`<div class="ledger-entry">
+        <span class="ledger-delta" style="color:${pos?'#06d6a0':'#ff6b6b'}">${pos?'+':''}${e.delta}⭐</span>
+        <span class="ledger-reason">${escHtml(e.reason)}</span>
+        <span class="ledger-date">${label}</span></div>`;
+    }).join(''):'<div class="empty-state">No transactions yet.</div>';
+    el.innerHTML=`<select onchange="currentLedgerPerson=this.value;renderPointsTab()"
+      style="width:100%;margin-bottom:8px;padding:6px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Nunito',sans-serif;">${personSelect}</select>
+      <div style="display:flex;flex-direction:column;gap:4px;max-height:340px;overflow-y:auto;">${rows}</div>`;
   }else{
     el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">${MEMBERS.map(m=>{
       const bal=getAllowance(m.key);
@@ -1720,7 +1797,28 @@ async function redeemReward(id){
   const r=rewards[id];if(!r)return;
   const cur=points[currentUser.name]?.total||0;
   if(cur<r.cost){showToast(`Need ${r.cost} pts — you have ${cur}`);return;}
-  await dbTransaction(`points/${currentUser.name}/total`,cur=>Math.max(0,(cur||0)-r.cost));showToast(`Redeemed "${r.name}"!`);
+  // Check if a pending request already exists for this person+reward
+  const alreadyPending=Object.values(redeemRequests).some(req=>req.rewardId===id&&req.person===currentUser.name&&req.status==='pending');
+  if(alreadyPending){showToast('Already requested — waiting for approval!');return;}
+  await dbPush('redeemRequests',{person:currentUser.name,rewardId:id,rewardName:r.name,rewardIcon:r.icon||'🏆',cost:r.cost,status:'pending',ts:Date.now()});
+  showToast(`🎉 Requested "${r.name}" — waiting for parent approval!`);
+}
+async function approveRedeem(reqId){
+  const req=redeemRequests[reqId];if(!req||req.status!=='pending')return;
+  const cur=points[req.person]?.total||0;
+  if(cur<req.cost){
+    await dbSet(`redeemRequests/${reqId}/status`,'denied');
+    showToast(`${req.person} doesn't have enough points!`);return;
+  }
+  await dbTransaction(`points/${req.person}/total`,cur=>Math.max(0,(cur||0)-req.cost));
+  await dbPush('pointsLedger',{person:req.person,delta:-req.cost,reason:`Redeemed: ${req.rewardName}`,type:'redeem',ts:Date.now()});
+  await dbSet(`redeemRequests/${reqId}/status`,'approved');
+  showToast(`✅ Approved "${req.rewardName}" for ${req.person}!`);
+}
+async function denyRedeem(reqId){
+  const req=redeemRequests[reqId];if(!req)return;
+  await dbRemove(`redeemRequests/${reqId}`);
+  showToast('Request denied.');
 }
 async function adjustAllowance(person,delta){await setAllowance(person,Math.max(0,getAllowance(person)+delta));}
 async function adjustAllowanceCustom(person){
