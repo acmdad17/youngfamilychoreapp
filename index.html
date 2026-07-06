@@ -2415,6 +2415,16 @@ async function triggerAlert(type){
     triggeredBy:currentUser.name,triggeredAt:Date.now(),
     claimedBy:null,active:true
   });
+  // ── HOME ASSISTANT WEBHOOK ──
+  // Set HA_WEBHOOK_ID to your HA webhook ID (Settings → Automations → Trigger: Webhook)
+  const HA_WEBHOOK_ID = 'young-fam-alert-2026';
+  if(HA_WEBHOOK_ID){
+    fetch(`https://isf2pjcd455ui5hvom8ua4pngmmch8gq.ui.nabu.casa/api/webhook/${HA_WEBHOOK_ID}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type,label:at.label,emoji:at.emoji,triggeredBy:currentUser.name})
+    }).catch(()=>{});  // fire-and-forget, don't block the alert
+  }
 }
 
 async function claimCurrentAlert(){
