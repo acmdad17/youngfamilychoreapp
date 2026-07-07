@@ -43,7 +43,7 @@ self.addEventListener('notificationclick', event => {
 });
 
 // ── CACHE ──
-const CACHE  = 'young-fam-v6';
+const CACHE  = 'young-fam-v7';
 const STATIC = [
   '/youngfamilychoreapp/manifest.json',
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;800&display=swap',
@@ -94,10 +94,4 @@ self.addEventListener('fetch', e => {
       return fetch(e.request).then(response => {
         if (e.request.method === 'GET' && response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return response;
-      });
-    })
-  );
-});
+          c
