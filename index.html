@@ -1000,6 +1000,41 @@
   </div>
 </div>
 
+<!-- STANDING SCHEDULE MODAL -->
+<div class="modal-backdrop" id="standing-modal" onclick="if(event.target===this)closeStandingModal()">
+  <div class="modal" style="max-height:90vh;overflow-y:auto;">
+    <h2>🔁 Standing Schedule</h2>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <label style="font-size:.82rem;font-weight:700;color:var(--muted);">Viewing:</label>
+      <select id="standing-person-sel" onchange="renderStandingList()"
+        style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:.9rem;flex:1;"></select>
+    </div>
+    <div id="standing-entries-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+    <div id="standing-add-form" style="background:var(--surface2);border-radius:var(--radius-md);padding:12px;display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:.82rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Add Entry</div>
+      <div class="form-group"><label>Title</label><input type="text" id="sched-title" placeholder="e.g. Work, School, Band practice"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="sched-type" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;width:100%;font-size:1rem;">
+          <option value="work">💼 Work</option>
+          <option value="school">🏫 School</option>
+          <option value="activity">⚽ Activity</option>
+          <option value="other">📌 Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Days</label><div id="sched-days-grid" class="days-grid"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group"><label>Start time</label><input type="time" id="sched-start"></div>
+        <div class="form-group"><label>End time</label><input type="time" id="sched-end"></div>
+      </div>
+      <div class="form-group"><label>Active until (optional)</label><input type="date" id="sched-until" placeholder="Leave blank = always"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="closeStandingModal()">Close</button>
+      <button class="btn btn-primary" id="standing-save-btn" onclick="saveStandingEntry()">Add Entry</button>
+    </div>
+  </div>
+</div>
+
 <!-- ONBOARDING WIZARD -->
 <div id="onboard-modal" onclick="onboardBackdropClick(event)">
   <div class="onboard-box">
@@ -1115,7 +1150,7 @@
 
     <!-- Selected Day -->
     <div class="panel selected-day-panel" data-tab="home">
-      <div class="panel-title"><span>Schedule</span></div>
+      <div class="panel-title"><span>Schedule</span><button class="btn btn-sm" onclick="openStandingModal()">🔁 My Schedule</button></div>
       <div id="selected-day-title"></div>
       <div class="selected-events-list" id="selected-events-list"></div>
     </div>
@@ -1143,9 +1178,13 @@
     <div class="panel chores-panel" data-tab="chores">
       <div class="panel-title">
         <span>Chores</span>
-        <button class="btn btn-sm" onclick="openAddChoreModal()">+ Add</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" id="accountability-toggle-btn" onclick="toggleAccountability()">📊 Stats</button>
+          <button class="btn btn-sm" onclick="openAddChoreModal()">+ Add</button>
+        </div>
       </div>
       <div id="chores-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="accountability-panel" style="display:none;margin-top:12px;"></div>
     </div>
 
     <!-- Meals -->
@@ -1307,6 +1346,10 @@ let pointsLedger={};
 let redeemRequests={};
 let presence={};
 let fcmTokensData={};
+let standingSchedules={};
+let familyAlerts={};
+let currentAlertId=null;
+let lastAlertSeen=localStorage.getItem('young_lastAlertSeen');
 
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
@@ -1334,6 +1377,20 @@ function eventOccursOn(evt,dateStr){
   if(evt.recurring==='weekdays') return dow>=1&&dow<=5;
   if(evt.recurring==='weekends') return dow===0||dow===6;
   return evt.date===dateStr;
+}
+
+// ── STANDING SCHEDULE HELPER ──
+function standingEventsOn(dateStr){
+  const d=new Date(dateStr+'T12:00:00'),dow=d.getDay(),out=[];
+  Object.entries(standingSchedules||{}).forEach(([person,entries])=>{
+    Object.entries(entries||{}).forEach(([id,s])=>{
+      if(!s.active||!s.days?.includes(dow))return;
+      if(s.effectiveFrom&&dateStr<s.effectiveFrom)return;
+      if(s.effectiveUntil&&dateStr>s.effectiveUntil)return;
+      out.push({person,title:s.title,time:s.start||'',endTime:s.end||'',type:s.type||'other',fromStanding:true,standingId:id});
+    });
+  });
+  return out;
 }
 
 // ── TV MODE ──
@@ -1457,6 +1514,7 @@ function subscribeAll(){
     ov(ref(db,'pointsLedger'),      snap=>{pointsLedger   =snap.val()||{};renderPointsTab();},noop);
     ov(ref(db,'redeemRequests'),    snap=>{redeemRequests =snap.val()||{};renderPointsTab();},noop);
     ov(ref(db,'fcmTokens'),         snap=>{fcmTokensData  =snap.val()||{};renderDeviceBoard();},noop);
+    ov(ref(db,'standingSchedule'),  snap=>{standingSchedules=snap.val()||{};renderWeek();renderSelectedDay();renderMembers();},noop);
   }catch(e){
     console.error('subscribeAll error:',e);
     setSyncStatus('error');
@@ -1872,7 +1930,8 @@ function renderWeek(){
   const evList=[...Object.values(events),...Object.values(calEvents)].filter(e=>!filterMember||e.person===filterMember);
   for(let i=0;i<7;i++){
     const d=addDays(start,i);const ds=fmtDate(d);
-    const dayEvts=evList.filter(e=>eventOccursOn(e,ds));
+    const standingEvts=standingEventsOn(ds).filter(e=>!filterMember||e.person===filterMember);
+    const dayEvts=[...evList.filter(e=>eventOccursOn(e,ds)),...standingEvts];
     const dinner=meals[ds]?.dinner||'';
     const col=document.createElement('div');
     col.className='day-col'+(ds===todayStr?' today':'')+(ds===selectedDate?' selected':'');
@@ -1893,8 +1952,11 @@ function renderSelectedDay(){
   const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('selected-day-title').innerHTML=
     `<div class="sel-day-hero"><span class="sel-day-num">${d.getDate()}</span><span class="sel-day-meta">${dayNames[d.getDay()].slice(0,3)}<br>${months[d.getMonth()]}</span></div>`;
-  const dayEvts=[...Object.entries(events),...Object.entries(calEvents)]
-    .filter(([,e])=>eventOccursOn(e,selectedDate)&&(!filterMember||e.person===filterMember))
+  const regularEvts=[...Object.entries(events),...Object.entries(calEvents)]
+    .filter(([,e])=>eventOccursOn(e,selectedDate)&&(!filterMember||e.person===filterMember));
+  const standingForDay=standingEventsOn(selectedDate).filter(e=>!filterMember||e.person===filterMember)
+    .map(e=>[`_standing_${e.person}_${e.standingId}`,e]);
+  const dayEvts=[...regularEvts,...standingForDay]
     .sort(([,a],[,b])=>(a.time||'99:99').localeCompare(b.time||'99:99'));
   const list=document.getElementById('selected-events-list');
   if(!dayEvts.length){list.innerHTML='<div class="empty-state">No events — enjoy a free day! 🎉</div>';return;}
@@ -1902,11 +1964,12 @@ function renderSelectedDay(){
     const isMe=currentUser&&e.person===currentUser.name;
     const isRecurring=e.recurring&&e.recurring!=='none';
     const isCal=!!e.fromCal;
-    return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}${isCal?';opacity:.85':''}">
+    const isStanding=!!e.fromStanding;
+    return`<div class="sel-event${isMe?' mine':''}" style="border-color:${MEMBER_HEX[e.person]||'#888'}${(isCal||isStanding)?';opacity:.85':''}">
       <div class="sel-event-time">${e.time?formatTime(e.time):'All day'}</div>
-      <div style="flex:1"><div class="sel-event-title">${isCal?'📅 ':''}${e.title}${isRecurring?'<span class="sel-recurring-badge">🔁</span>':''}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
-      <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person}${isCal?' · Calendar':' · '+capitalize(e.type)}</div></div>
-      ${!isCal?`<button class="edit-btn" onclick="openEditEvent('${id}')">✏️</button><button class="delete-btn" onclick="deleteEvent('${id}')">✕</button>`:''}</div>`;
+      <div style="flex:1"><div class="sel-event-title">${isCal?'📅 ':''}${isStanding?'🔁 ':''}${e.title}${isRecurring?'<span class="sel-recurring-badge">🔁</span>':''}${isMe?' <span style="font-size:.65rem;color:var(--accent)">● you</span>':''}</div>
+      <div class="sel-event-person" style="color:${MEMBER_HEX[e.person]||'#888'}">${e.person}${isCal?' · Calendar':isStanding?' · Recurring':' · '+capitalize(e.type)}</div></div>
+      ${(!isCal&&!isStanding)?`<button class="edit-btn" onclick="openEditEvent('${id}')">✏️</button><button class="delete-btn" onclick="deleteEvent('${id}')">✕</button>`:''}</div>`;
   }).join('');
 }
 async function deleteEvent(id){await dbRemove(`events/${id}`);}
@@ -1916,7 +1979,7 @@ function renderMembers(){
   const grid=document.getElementById('members-grid');grid.innerHTML='';
   const evList=[...Object.values(events),...Object.values(calEvents)];
   MEMBERS.forEach((m,i)=>{
-    const dayEvts=evList.filter(e=>eventOccursOn(e,selectedDate)&&e.person===m.key);
+    const dayEvts=[...evList.filter(e=>eventOccursOn(e,selectedDate)&&e.person===m.key),...standingEventsOn(selectedDate).filter(e=>e.person===m.key)];
     const isWork=dayEvts.some(e=>e.type==='work');
     const isAway=dayEvts.some(e=>e.type==='travel'||e.type==='away');
     const isMe=currentUser&&m.key===currentUser.name;
@@ -2533,6 +2596,359 @@ function saveIcalProxyUrl(){
   fetchAllIcalFeeds();
 }
 
+
+// ── ALERT SYSTEM (restored) ──
+const ALERT_TYPES=[
+  {type:'dishwasher',emoji:'🍽️',label:'Dishwasher is done',color:'#4fc3f7'},
+  {type:'laundry',   emoji:'👕',label:'Move laundry',       color:'#ff7eb3'},
+  {type:'feedDogs',  emoji:'🐕',label:'Feed dogs',          color:'#ff8c42'},
+  {type:'dinner',    emoji:'🍴',label:"Dinner's ready",     color:'#06d6a0'},
+];
+let _audioCtx=null;
+function getAudioCtx(){
+  if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+  return _audioCtx;
+}
+document.addEventListener('pointerdown',()=>getAudioCtx(),{once:true});
+function playDing(){
+  try{
+    const ctx=getAudioCtx();
+    [[880,.0],[660,.18]].forEach(([freq,delay])=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=freq;osc.type='sine';
+      const t=ctx.currentTime+delay;
+      gain.gain.setValueAtTime(0.5,t);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.7);
+      osc.start(t);osc.stop(t+0.7);
+    });
+  }catch(e){}
+}
+async function triggerAlert(type){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
+  const at=ALERT_TYPES.find(a=>a.type===type);if(!at)return;
+  const cutoff=Date.now()-3600000;
+  for(const[id,a] of Object.entries(familyAlerts)){
+    if(a.active&&a.type===type)await dbUpdate(`familyAlerts/${id}`,{active:false});
+    else if(!a.active&&(a.triggeredAt||0)<cutoff)await dbRemove(`familyAlerts/${id}`);
+  }
+  await dbPush('familyAlerts',{type,label:at.label,emoji:at.emoji,color:at.color,
+    triggeredBy:currentUser.name,triggeredAt:Date.now(),claimedBy:null,active:true});
+  const HA_WEBHOOK_ID='young-fam-alert-2026';
+  if(HA_WEBHOOK_ID){
+    fetch(`https://isf2pjcd455ui5hvom8ua4pngmmch8gq.ui.nabu.casa/api/webhook/${HA_WEBHOOK_ID}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type,label:at.label,emoji:at.emoji,triggeredBy:currentUser.name})
+    }).catch(()=>{});
+  }
+}
+async function claimCurrentAlert(){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
+  if(!currentAlertId)return;
+  await dbUpdate(`familyAlerts/${currentAlertId}`,{claimedBy:currentUser.name,active:false});
+  document.getElementById('alert-claim-btn').style.display='none';
+  document.getElementById('alert-who').textContent=`${currentUser.name} is on it`;
+  document.getElementById('alert-who').style.display='block';
+  document.getElementById('alert-dismiss-btn').textContent='Done';
+  setTimeout(()=>{closeFamilyAlertOverlay();},1800);
+}
+function handleAlertDismiss(){closeFamilyAlertOverlay();}
+function closeFamilyAlertOverlay(){
+  currentAlertId=null;
+  clearInterval(_tvDismissTimer);
+  const timerEl=document.getElementById('tv-alert-timer');
+  if(timerEl)timerEl.style.display='none';
+  document.getElementById('alert-overlay').classList.remove('open');
+}
+function showFamilyAlertOverlay(id,alert){
+  currentAlertId=id;
+  document.getElementById('alert-icon').textContent=alert.emoji||'🔔';
+  document.getElementById('alert-title').textContent=alert.label;
+  document.getElementById('alert-body').textContent=`${alert.triggeredBy} needs a hand`;
+  document.getElementById('alert-card').style.borderColor=alert.color||'var(--accent)';
+  document.getElementById('alert-claim-btn').style.display='';
+  document.getElementById('alert-dismiss-btn').textContent='Dismiss';
+  document.getElementById('alert-who').style.display='none';
+  document.getElementById('alert-who').textContent='';
+  document.getElementById('alert-overlay').classList.add('open');
+  playDing();
+  if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
+  if(TV_MODE){
+    clearInterval(_tvDismissTimer);
+    let remaining=30;
+    const timerEl=document.getElementById('tv-alert-timer');
+    timerEl.style.display='block';timerEl.textContent=remaining;
+    _tvDismissTimer=setInterval(()=>{
+      remaining--;timerEl.textContent=remaining;
+      if(remaining<=0){clearInterval(_tvDismissTimer);timerEl.style.display='none';closeFamilyAlertOverlay();}
+    },1000);
+  }
+}
+function handleAlertsUpdate(newAlerts){
+  const ALERT_TTL=600000;
+  const active=Object.entries(newAlerts)
+    .sort(([,a],[,b])=>b.triggeredAt-a.triggeredAt)
+    .find(([,a])=>a.active&&(Date.now()-a.triggeredAt)<ALERT_TTL);
+  if(active){
+    const[id,alert]=active;
+    if(id!==lastAlertSeen){
+      lastAlertSeen=id;localStorage.setItem('young_lastAlertSeen',id);
+      showFamilyAlertOverlay(id,alert);
+    }
+  }
+  if(currentAlertId&&newAlerts[currentAlertId]&&!newAlerts[currentAlertId].active){
+    const a=newAlerts[currentAlertId];
+    if(a.claimedBy&&a.claimedBy!==currentUser?.name){
+      document.getElementById('alert-claim-btn').style.display='none';
+      document.getElementById('alert-who').textContent=`${a.claimedBy} is on it`;
+      document.getElementById('alert-who').style.display='block';
+      document.getElementById('alert-dismiss-btn').textContent='Done';
+      setTimeout(()=>{closeFamilyAlertOverlay();},2000);
+    }else if(!a.claimedBy){closeFamilyAlertOverlay();}
+  }
+}
+function showAlert(icon,title,body,color){
+  currentAlertId=null;
+  document.getElementById('alert-icon').textContent=icon||'✅';
+  document.getElementById('alert-title').textContent=title||'';
+  document.getElementById('alert-body').textContent=body||'';
+  document.getElementById('alert-card').style.borderColor=color||'var(--accent)';
+  document.getElementById('alert-claim-btn').style.display='none';
+  document.getElementById('alert-who').style.display='none';
+  document.getElementById('alert-dismiss-btn').textContent='Got it';
+  document.getElementById('alert-overlay').classList.add('open');
+  if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
+}
+
+// ── STANDING SCHEDULE EDITOR ──
+let _editingStandingId=null;
+function openStandingModal(){
+  const sel=document.getElementById('standing-person-sel');
+  sel.innerHTML=MEMBERS.map(m=>`<option value="${m.key}"${m.key===currentUser?.name?' selected':''}>${m.emoji} ${m.key}</option>`).join('');
+  document.getElementById('sched-days-grid').innerHTML=buildSchedDaysGrid([]);
+  document.getElementById('sched-title').value='';
+  document.getElementById('sched-type').value='work';
+  document.getElementById('sched-start').value='';
+  document.getElementById('sched-end').value='';
+  document.getElementById('sched-until').value='';
+  _editingStandingId=null;
+  document.getElementById('standing-save-btn').textContent='Add Entry';
+  renderStandingList();
+  document.getElementById('standing-modal').classList.add('open');
+}
+function closeStandingModal(){document.getElementById('standing-modal').classList.remove('open');}
+function buildSchedDaysGrid(checked=[]){
+  return DAY_NAMES.map((d,i)=>`<label class="day-chip"><input type="checkbox" name="sched-day" value="${i}"${checked.includes(i)?' checked':''}><span>${d}</span></label>`).join('');
+}
+function renderStandingList(){
+  const person=document.getElementById('standing-person-sel')?.value;
+  if(!person)return;
+  const isEditable=PARENTS.includes(currentUser?.name)||person===currentUser?.name;
+  const entries=Object.entries(standingSchedules[person]||{});
+  const list=document.getElementById('standing-entries-list');
+  const addForm=document.getElementById('standing-add-form');
+  if(addForm)addForm.style.display=isEditable?'':'none';
+  if(!entries.length){list.innerHTML='<div class="empty-state" style="font-size:.82rem;">No standing entries yet.</div>';return;}
+  list.innerHTML=entries.map(([id,s])=>{
+    const days=(s.days||[]).map(d=>DAY_NAMES[d]).join(', ');
+    const timeStr=s.start?(s.end?`${formatTime(s.start)}–${formatTime(s.end)}`:formatTime(s.start)):'All day';
+    const typeMap={work:'💼',school:'🏫',activity:'⚽',other:'📌'};
+    return`<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:1.2rem;">${typeMap[s.type]||'📌'}</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:.9rem;">${escHtml(s.title)}</div>
+        <div style="font-size:.75rem;color:var(--muted);">${days} · ${timeStr}${s.effectiveUntil?' until '+s.effectiveUntil:''}</div>
+      </div>
+      ${isEditable?`<button class="edit-btn" onclick="editStandingEntry('${person}','${id}')">✏️</button><button class="delete-btn" onclick="deleteStandingEntry('${person}','${id}')">✕</button>`:''}
+    </div>`;
+  }).join('');
+}
+function editStandingEntry(person,id){
+  const s=standingSchedules[person]?.[id];if(!s)return;
+  _editingStandingId=id;
+  document.getElementById('standing-person-sel').value=person;
+  document.getElementById('sched-title').value=s.title||'';
+  document.getElementById('sched-type').value=s.type||'other';
+  document.getElementById('sched-days-grid').innerHTML=buildSchedDaysGrid(s.days||[]);
+  document.getElementById('sched-start').value=s.start||'';
+  document.getElementById('sched-end').value=s.end||'';
+  document.getElementById('sched-until').value=s.effectiveUntil||'';
+  document.getElementById('standing-save-btn').textContent='Save Changes';
+}
+async function deleteStandingEntry(person,id){
+  await dbRemove(`standingSchedule/${person}/${id}`);
+  showToast('Entry removed');
+}
+async function saveStandingEntry(){
+  const person=document.getElementById('standing-person-sel').value;
+  const title=document.getElementById('sched-title').value.trim();
+  if(!title){showToast('Enter a title');return;}
+  const days=[...document.querySelectorAll('input[name="sched-day"]:checked')].map(c=>parseInt(c.value));
+  if(!days.length){showToast('Pick at least one day');return;}
+  const data={title,type:document.getElementById('sched-type').value,days,
+    start:document.getElementById('sched-start').value||'',
+    end:document.getElementById('sched-end').value||'',
+    effectiveUntil:document.getElementById('sched-until').value||null,
+    active:true,updatedAt:Date.now()};
+  if(_editingStandingId){
+    await dbSet(`standingSchedule/${person}/${_editingStandingId}`,data);
+    showToast('Entry updated');
+  }else{
+    await dbPush(`standingSchedule/${person}`,data);
+    showToast(`Added for ${person}`);
+  }
+  _editingStandingId=null;
+  document.getElementById('standing-save-btn').textContent='Add Entry';
+  document.getElementById('sched-title').value='';
+  document.getElementById('sched-start').value='';
+  document.getElementById('sched-end').value='';
+  document.getElementById('sched-until').value='';
+  document.getElementById('sched-days-grid').innerHTML=buildSchedDaysGrid([]);
+  renderStandingList();
+}
+
+// ── ACCOUNTABILITY ("WHO'S SLACKING") ──
+let _acctRange='7d';
+let _acctVisible=false;
+function toggleAccountability(){
+  _acctVisible=!_acctVisible;
+  const panel=document.getElementById('accountability-panel');
+  const btn=document.getElementById('accountability-toggle-btn');
+  panel.style.display=_acctVisible?'block':'none';
+  btn.textContent=_acctVisible?'✕ Stats':'📊 Stats';
+  if(_acctVisible)renderAccountability();
+}
+function flattenChoreLog(fromDate,toDate){
+  const rows=[];
+  Object.entries(choreLog).forEach(([date,byChore])=>{
+    if(date<fromDate||date>toDate)return;
+    Object.entries(byChore||{}).forEach(([choreId,entries])=>{
+      Object.entries(entries||{}).forEach(([key,e])=>{
+        rows.push({date,choreId,choreName:chores[choreId]?.name||choreId,
+          icon:chores[choreId]?.icon||'✅',person:e.person,time:e.time,
+          points:chores[choreId]?.points||1,key});
+      });
+    });
+  });
+  return rows.sort((a,b)=>(b.time||b.date).localeCompare(a.time||a.date));
+}
+function getAcctDateRange(){
+  const t=fmtDate(new Date());
+  if(_acctRange==='today')return[t,t];
+  if(_acctRange==='7d')return[fmtDate(addDays(new Date(),-6)),t];
+  if(_acctRange==='30d')return[fmtDate(addDays(new Date(),-29)),t];
+  const allDates=Object.keys(choreLog).sort();
+  return allDates.length?[allDates[0],t]:[t,t];
+}
+function renderAccountability(){
+  const panel=document.getElementById('accountability-panel');if(!panel||!_acctVisible)return;
+  const[fromDate,toDate]=getAcctDateRange();
+  const rows=flattenChoreLog(fromDate,toDate);
+  const dates=[];
+  let cur=new Date(fromDate+'T12:00:00');const end=new Date(toDate+'T12:00:00');
+  while(cur<=end){dates.push(fmtDate(cur));cur=addDays(cur,1);}
+  const metrics={};
+  MEMBERS.forEach(m=>{metrics[m.key]={done:0,expected:0,missed:0,pickedUp:0,lastActive:null};});
+  dates.forEach(ds=>{
+    const dow=new Date(ds+'T12:00:00').getDay();
+    Object.entries(chores).forEach(([choreId,c])=>{
+      if(c.scheduleDays&&c.scheduleDays.length&&!c.scheduleDays.includes(dow))return;
+      if(c.created&&c.created>new Date(ds+'T23:59:59').getTime())return;
+      const freq=parseInt(c.freq)||1;
+      const assigned=c.assignedTo&&c.assignedTo.length?c.assignedTo:null;
+      if(!assigned)return;
+      const splitExp=freq/assigned.length;
+      assigned.forEach(person=>{
+        if(!metrics[person])return;
+        metrics[person].expected+=splitExp;
+        const done=Object.values(choreLog[ds]?.[choreId]||{}).filter(e=>e.person===person).length;
+        metrics[person].done+=done;
+        if(done===0&&splitExp>=0.5)metrics[person].missed++;
+      });
+    });
+    rows.filter(r=>r.date===ds).forEach(r=>{
+      const c=chores[r.choreId];if(!c)return;
+      if(!(c.assignedTo||[]).includes(r.person)&&metrics[r.person])metrics[r.person].pickedUp++;
+    });
+  });
+  rows.forEach(r=>{
+    if(metrics[r.person]&&(!metrics[r.person].lastActive||r.date>metrics[r.person].lastActive))
+      metrics[r.person].lastActive=r.date;
+  });
+  const activeChores=Object.entries(chores).filter(([,c])=>
+    !c.scheduleDays||!c.scheduleDays.length||
+    dates.some(ds=>c.scheduleDays.includes(new Date(ds+'T12:00:00').getDay())));
+  const matrixRows=activeChores.map(([choreId,c])=>{
+    const cells=MEMBERS.map(m=>({
+      done:rows.filter(r=>r.choreId===choreId&&r.person===m.key).length,
+      assigned:(c.assignedTo||[]).includes(m.key)
+    }));
+    const houseDone=rows.filter(r=>r.choreId===choreId&&!(c.assignedTo||[]).includes(r.person)).length;
+    return{choreId,name:c.name,icon:c.icon||'✅',cells,houseDone};
+  });
+  const sorted=MEMBERS.slice().sort((a,b)=>{
+    const ra=metrics[a.key],rb=metrics[b.key];
+    const rA=ra.expected>0?ra.done/ra.expected:1,rB=rb.expected>0?rb.done/rb.expected:1;
+    return rB-rA;
+  });
+  const rangeLabel={today:'Today','7d':'Last 7 days','30d':'Last 30 days',all:'All time'}[_acctRange];
+  panel.innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      ${['today','7d','30d','all'].map(r=>`<button class="cat-chip${_acctRange===r?' active':''}" onclick="_acctRange='${r}';renderAccountability()">${{today:'Today','7d':'7 days','30d':'30 days',all:'All'}[r]}</button>`).join('')}
+    </div>
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">📊 ${rangeLabel}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      ${sorted.map(m=>{
+        const mt=metrics[m.key];
+        const rate=mt.expected>0?mt.done/mt.expected:null;
+        const pct=rate!==null?Math.min(Math.round(rate*100),999):null;
+        const streak=getBestStreak(m.key);
+        const slacking=rate!==null&&rate<0.5&&mt.expected>=3;
+        return`<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-weight:700;font-size:.9rem;flex:1;">${m.emoji} ${m.key}${slacking?` <span style="font-size:.65rem;background:#ff4d6d22;color:#ff4d6d;border-radius:4px;padding:1px 5px;font-weight:700;">😴 slacking</span>`:''}</span>
+            ${streak>1?`<span style="font-size:.72rem;color:#ff8c42;">🔥${streak}</span>`:''}
+            ${mt.pickedUp>0?`<span style="font-size:.72rem;color:var(--primary);">🤝${mt.pickedUp}</span>`:''}
+            ${(currentUser&&m.key!==currentUser.name)?`<button class="btn btn-sm" style="font-size:.65rem;padding:2px 6px;" onclick="nudgeMember('${m.key}',${mt.missed})">👀 Nudge</button>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${Math.min(pct??0,100)}%;background:${m.color};border-radius:4px;transition:width .4s;"></div>
+            </div>
+            <span style="font-size:.75rem;font-weight:700;color:${m.color};min-width:60px;text-align:right;">${pct!==null?pct+'%':'–'} <span style="color:var(--muted);font-weight:400;">${mt.done}/${Math.round(mt.expected)}</span></span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Per-Chore Breakdown</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table style="width:100%;border-collapse:collapse;font-size:.72rem;">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 6px;color:var(--muted);font-weight:700;">Chore</th>
+        ${MEMBERS.map(m=>`<th style="padding:4px 6px;color:${m.color};font-weight:700;text-align:center;">${m.emoji}</th>`).join('')}
+        <th style="padding:4px 6px;color:var(--muted);font-weight:700;text-align:center;">🏠</th>
+      </tr></thead>
+      <tbody>${matrixRows.map(r=>`<tr>
+        <td style="padding:4px 6px;font-weight:600;">${r.icon} ${escHtml(r.name)}</td>
+        ${r.cells.map(cell=>{
+          const bg=cell.assigned&&cell.done===0?'background:#ff4d6d22;color:#ff4d6d;':'';
+          return`<td style="text-align:center;padding:4px 6px;border-radius:4px;${bg}">${cell.done||'·'}</td>`;
+        }).join('')}
+        <td style="text-align:center;padding:4px 6px;color:var(--muted);">${r.houseDone||'·'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+async function nudgeMember(name,missed){
+  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
+  await dbPush('familyAlerts',{
+    type:'nudge',label:`${name}, chores are waiting${missed>0?' ('+missed+' missed)':''}`,
+    emoji:'👀',color:'#ff8c42',triggeredBy:currentUser.name,
+    triggeredAt:Date.now(),claimedBy:null,active:true
+  });
+  showToast(`Nudge sent to ${name}!`);
+}
+
 // ── HOME ASSISTANT ──
 function openHAModal(){
   if(haConfig){document.getElementById('ha-url-input').value=haConfig.url||'';document.getElementById('ha-token-input').value=haConfig.token||'';}
@@ -2592,176 +3008,6 @@ async function haToggle(entityId,domain,cur){
   catch{showToast('Could not control device');}
 }
 
-// ── TOAST ──
-function showToast(msg,duration=3000){
-  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),duration);
-}
-
-// ── FAMILY ALERTS ──
-const ALERT_TYPES=[
-  {type:'dishwasher',emoji:'🍽️',label:'Dishwasher is done',color:'#4fc3f7'},
-  {type:'laundry',   emoji:'👕',label:'Move laundry',       color:'#ff7eb3'},
-  {type:'feedDogs',  emoji:'🐕',label:'Feed dogs',          color:'#ff8c42'},
-  {type:'dinner',    emoji:'🍴',label:"Dinner's ready",     color:'#06d6a0'},
-];
-let familyAlerts={};
-let currentAlertId=null;
-let lastAlertSeen=localStorage.getItem('young_lastAlertSeen');
-
-let _audioCtx=null;
-function getAudioCtx(){
-  if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
-  return _audioCtx;
-}
-document.addEventListener('pointerdown',()=>getAudioCtx(),{once:true});
-
-function playDing(){
-  try{
-    const ctx=getAudioCtx();
-    [[880,.0],[660,.18]].forEach(([freq,delay])=>{
-      const osc=ctx.createOscillator(),gain=ctx.createGain();
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.frequency.value=freq;osc.type='sine';
-      const t=ctx.currentTime+delay;
-      gain.gain.setValueAtTime(0.5,t);
-      gain.gain.exponentialRampToValueAtTime(0.001,t+0.7);
-      osc.start(t);osc.stop(t+0.7);
-    });
-  }catch(e){}
-}
-
-async function triggerAlert(type){
-  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
-  const at=ALERT_TYPES.find(a=>a.type===type);if(!at)return;
-  // Deactivate any existing active alert of same type; prune nodes older than 1 hour
-  const cutoff=Date.now()-60*60*1000;
-  for(const[id,a] of Object.entries(familyAlerts)){
-    if(a.active&&a.type===type) await dbUpdate(`familyAlerts/${id}`,{active:false});
-    else if(!a.active&&a.triggeredAt<cutoff) await dbRemove(`familyAlerts/${id}`);
-  }
-  await dbPush('familyAlerts',{
-    type,label:at.label,emoji:at.emoji,color:at.color,
-    triggeredBy:currentUser.name,triggeredAt:Date.now(),
-    claimedBy:null,active:true
-  });
-  // ── HOME ASSISTANT WEBHOOK ──
-  // Set HA_WEBHOOK_ID to your HA webhook ID (Settings → Automations → Trigger: Webhook)
-  const HA_WEBHOOK_ID = 'young-fam-alert-2026';
-  if(HA_WEBHOOK_ID){
-    fetch(`https://isf2pjcd455ui5hvom8ua4pngmmch8gq.ui.nabu.casa/api/webhook/${HA_WEBHOOK_ID}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type,label:at.label,emoji:at.emoji,triggeredBy:currentUser.name})
-    }).catch(()=>{});  // fire-and-forget, don't block the alert
-  }
-}
-
-async function claimCurrentAlert(){
-  if(!currentUser||currentUser.name==='Guest'){showToast('Select yourself first');return;}
-  if(!currentAlertId)return;
-  await dbUpdate(`familyAlerts/${currentAlertId}`,{claimedBy:currentUser.name,active:false});
-  // Show "you're on it" locally
-  document.getElementById('alert-claim-btn').style.display='none';
-  document.getElementById('alert-who').textContent=`${currentUser.name} is on it`;
-  document.getElementById('alert-who').style.display='block';
-  document.getElementById('alert-dismiss-btn').textContent='Done';
-  setTimeout(()=>{closeFamilyAlertOverlay();},1800);
-}
-
-function handleAlertDismiss(){
-  // Dismiss is local-only — closes your overlay without affecting other devices.
-  // Only "I'll get it" (claim) writes to Firebase and notifies everyone.
-  closeFamilyAlertOverlay();
-}
-
-function closeFamilyAlertOverlay(){
-  currentAlertId=null;
-  clearInterval(_tvDismissTimer);
-  const timerEl=document.getElementById('tv-alert-timer');
-  if(timerEl)timerEl.style.display='none';
-  document.getElementById('alert-overlay').classList.remove('open');
-}
-
-function showFamilyAlertOverlay(id,alert){
-  currentAlertId=id;
-  document.getElementById('alert-icon').textContent=alert.emoji||'🔔';
-  document.getElementById('alert-title').textContent=alert.label;
-  document.getElementById('alert-body').textContent=`${alert.triggeredBy} needs a hand`;
-  document.getElementById('alert-card').style.borderColor=alert.color||'var(--accent)';
-  document.getElementById('alert-claim-btn').style.display='';
-  document.getElementById('alert-dismiss-btn').textContent='Dismiss';
-  document.getElementById('alert-who').style.display='none';
-  document.getElementById('alert-who').textContent='';
-  document.getElementById('alert-overlay').classList.add('open');
-  playDing();
-  if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
-  // TV mode: auto-dismiss with visible countdown
-  if(TV_MODE){
-    clearInterval(_tvDismissTimer);
-    let remaining=30;
-    const timerEl=document.getElementById('tv-alert-timer');
-    timerEl.style.display='block';
-    timerEl.textContent=remaining;
-    _tvDismissTimer=setInterval(()=>{
-      remaining--;
-      timerEl.textContent=remaining;
-      if(remaining<=0){
-        clearInterval(_tvDismissTimer);
-        timerEl.style.display='none';
-        closeFamilyAlertOverlay();
-      }
-    },1000);
-  }
-}
-
-function handleAlertsUpdate(newAlerts){
-  const ALERT_TTL=10*60*1000; // ignore alerts older than 10 minutes
-  // New active alert from someone else
-  const active=Object.entries(newAlerts)
-    .sort(([,a],[,b])=>b.triggeredAt-a.triggeredAt)
-    .find(([,a])=>a.active&&(Date.now()-a.triggeredAt)<ALERT_TTL);
-  if(active){
-    const[id,alert]=active;
-    if(id!==lastAlertSeen){
-      lastAlertSeen=id;
-      localStorage.setItem('young_lastAlertSeen',id);
-      showFamilyAlertOverlay(id,alert);
-    }
-  }
-  // Our current alert was claimed by someone else
-  if(currentAlertId&&newAlerts[currentAlertId]&&!newAlerts[currentAlertId].active){
-    const a=newAlerts[currentAlertId];
-    if(a.claimedBy&&a.claimedBy!==currentUser?.name){
-      document.getElementById('alert-claim-btn').style.display='none';
-      document.getElementById('alert-who').textContent=`${a.claimedBy} is on it`;
-      document.getElementById('alert-who').style.display='block';
-      document.getElementById('alert-dismiss-btn').textContent='Done';
-      setTimeout(()=>{closeFamilyAlertOverlay();},2000);
-    } else if(!a.claimedBy){
-      // Dismissed with no claim
-      closeFamilyAlertOverlay();
-    }
-  }
-}
-
-// ── PERSISTENT ALERT (milestone only) ──
-function showAlert(icon,title,body,color){
-  currentAlertId=null;
-  document.getElementById('alert-icon').textContent=icon||'✅';
-  document.getElementById('alert-title').textContent=title||'';
-  document.getElementById('alert-body').textContent=body||'';
-  document.getElementById('alert-card').style.borderColor=color||'var(--accent)';
-  document.getElementById('alert-claim-btn').style.display='none';
-  document.getElementById('alert-who').style.display='none';
-  document.getElementById('alert-dismiss-btn').textContent='Got it';
-  document.getElementById('alert-overlay').classList.add('open');
-  if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
-}
-
-// ── TABS ──
-let activeTab='home';
 function switchTab(tab){
   activeTab=tab;
   document.querySelectorAll('.tab-bar-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
