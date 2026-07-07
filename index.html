@@ -898,6 +898,34 @@
   </div>
 </div>
 
+<!-- FULL HISTORY MODAL -->
+<div class="modal-backdrop" id="full-history-modal" onclick="if(event.target===this)closeFullHistoryModal()">
+  <div class="modal" style="max-height:92vh;display:flex;flex-direction:column;">
+    <h2>📜 Full Chore History</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-group" style="margin:0;"><label>Person</label>
+        <select id="fh-person" onchange="renderFullHistory()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 8px;border-radius:8px;width:100%;font-size:.9rem;"></select>
+      </div>
+      <div class="form-group" style="margin:0;"><label>Chore</label>
+        <select id="fh-chore" onchange="renderFullHistory()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 8px;border-radius:8px;width:100%;font-size:.9rem;"></select>
+      </div>
+      <div class="form-group" style="margin:0;"><label>From</label>
+        <input type="date" id="fh-from" onchange="renderFullHistory()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 8px;border-radius:8px;width:100%;font-size:.9rem;box-sizing:border-box;">
+      </div>
+      <div class="form-group" style="margin:0;"><label>To</label>
+        <input type="date" id="fh-to" onchange="renderFullHistory()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 8px;border-radius:8px;width:100%;font-size:.9rem;box-sizing:border-box;">
+      </div>
+    </div>
+    <div id="fh-totals" style="font-size:.75rem;color:var(--muted);margin-bottom:8px;min-height:18px;"></div>
+    <div id="fh-content" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:120px;"></div>
+    <div class="modal-actions" style="margin-top:10px;flex-wrap:wrap;gap:8px;">
+      <button class="btn" onclick="closeFullHistoryModal()">Close</button>
+      <button class="btn" onclick="copyFullHistorySummary()">📋 Copy</button>
+      <button class="btn btn-primary" onclick="exportChoreCSV()">⬇️ CSV</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD ANNOUNCEMENT MODAL -->
 <div class="modal-backdrop" id="annc-modal" onclick="if(event.target===this)closeAnncModal()">
   <div class="modal">
@@ -1179,6 +1207,7 @@
       <div class="panel-title">
         <span>Chores</span>
         <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" onclick="openFullHistoryModal()">📜 History</button>
           <button class="btn btn-sm" id="accountability-toggle-btn" onclick="toggleAccountability()">📊 Stats</button>
           <button class="btn btn-sm" onclick="openAddChoreModal()">+ Add</button>
         </div>
@@ -3302,6 +3331,108 @@ if('serviceWorker'in navigator){
 setInterval(()=>{
   if(fmtDate(new Date())!==todayStr) window.location.reload();
 }, 60_000);
+
+
+// ── FULL HISTORY (Task 8) ──
+function openFullHistoryModal(){
+  const today=fmtDate(new Date());
+  const from=fmtDate(addDays(new Date(),-29));
+  document.getElementById('fh-from').value=from;
+  document.getElementById('fh-to').value=today;
+  // Populate person select
+  document.getElementById('fh-person').innerHTML=
+    '<option value="">Everyone</option>'+
+    MEMBERS.map(m=>`<option value="${m.key}">${m.emoji} ${m.key}</option>`).join('');
+  if(currentUser&&currentUser.name!=='Guest')
+    document.getElementById('fh-person').value=currentUser.name;
+  // Populate chore select
+  document.getElementById('fh-chore').innerHTML=
+    '<option value="">All Chores</option>'+
+    Object.entries(chores).map(([id,c])=>`<option value="${id}">${c.icon||'✅'} ${escHtml(c.name)}</option>`).join('');
+  renderFullHistory();
+  document.getElementById('full-history-modal').classList.add('open');
+}
+function closeFullHistoryModal(){document.getElementById('full-history-modal').classList.remove('open');}
+function getFullHistoryRows(){
+  const person=document.getElementById('fh-person')?.value||'';
+  const choreId=document.getElementById('fh-chore')?.value||'';
+  const from=document.getElementById('fh-from')?.value||fmtDate(addDays(new Date(),-29));
+  const to=document.getElementById('fh-to')?.value||fmtDate(new Date());
+  let rows=flattenChoreLog(from,to);
+  if(person)rows=rows.filter(r=>r.person===person);
+  if(choreId)rows=rows.filter(r=>r.choreId===choreId);
+  return rows;
+}
+function renderFullHistory(){
+  const rows=getFullHistoryRows();
+  const content=document.getElementById('fh-content');
+  const totals=document.getElementById('fh-totals');
+  if(!content)return;
+  if(!rows.length){content.innerHTML='<div class="empty-state">No completions in this range.</div>';totals.textContent='';return;}
+  // Totals line
+  const totalPts=rows.reduce((s,r)=>s+r.points,0);
+  const byPerson={};
+  rows.forEach(r=>{byPerson[r.person]=(byPerson[r.person]||0)+1;});
+  const personSummary=Object.entries(byPerson).sort((a,b)=>b[1]-a[1]).map(([p,n])=>`${p} ${n}`).join(', ');
+  totals.textContent=`${rows.length} completions · ${totalPts} pts · ${personSummary}`;
+  // Group by date
+  const byDate={};
+  rows.forEach(r=>{(byDate[r.date]=byDate[r.date]||[]).push(r);});
+  const html=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,dayRows])=>{
+    const label=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const entries=dayRows.map(r=>{
+      const timeStr=r.time?new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      const color=MEMBER_HEX[r.person]||'#888';
+      return`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:.72rem;color:var(--muted);min-width:58px;">${timeStr}</span>
+        <span style="flex:1;font-size:.82rem;font-weight:600;">${r.icon} ${escHtml(r.choreName)}</span>
+        <span style="font-size:.72rem;font-weight:700;padding:1px 6px;border-radius:var(--radius-full);background:${color}22;color:${color};">${r.person}</span>
+        <span style="font-size:.72rem;color:var(--muted);">⭐${r.points}</span>
+      </div>`;
+    }).join('');
+    return`<div><div style="font-size:.75rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">${label}</div>${entries}</div>`;
+  }).join('');
+  // Single innerHTML assignment for performance
+  content.innerHTML=html;
+}
+function exportChoreCSV(){
+  const rows=getFullHistoryRows();
+  if(!rows.length){showToast('No data to export');return;}
+  const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const csv='date,time,chore,person,points
+'+
+    rows.map(r=>[r.date,r.time||'',esc(r.choreName),r.person,r.points].join(',')).join('
+');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  const a=Object.assign(document.createElement('a'),{href:url,download:`choreLog_${fmtDate(new Date())}.csv`});
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV downloaded!');
+}
+async function copyFullHistorySummary(){
+  const rows=getFullHistoryRows();
+  if(!rows.length){showToast('No data to copy');return;}
+  const byDate={};
+  rows.forEach(r=>{(byDate[r.date]=byDate[r.date]||[]).push(r);});
+  const lines=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,dayRows])=>{
+    const label=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    return label+'
+'+dayRows.map(r=>`  ${r.icon} ${r.choreName} — ${r.person} (+${r.points}pts)`).join('
+');
+  }).join('
+
+');
+  const totalPts=rows.reduce((s,r)=>s+r.points,0);
+  const summary=`Chore Log (${rows.length} completions, ${totalPts} pts)
+
+${lines}`;
+  try{
+    await navigator.clipboard.writeText(summary);
+    showToast('Copied to clipboard!');
+  }catch{
+    showToast('Could not copy — try CSV export');
+  }
+}
 
 // ── BOOT ──
 waitForFirebase();
