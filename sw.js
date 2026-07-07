@@ -16,13 +16,16 @@ const messaging = firebase.messaging();
 
 // Called when a push arrives while the app is backgrounded or closed.
 messaging.onBackgroundMessage(payload => {
-  const { title, body } = payload.notification || {};
-  return self.registration.showNotification(title || '🏠 Young Family', {
-    body:    body || '',
-    vibrate: [300, 100, 300, 100, 300],
-    tag:     payload.data?.type || 'alert',
+  const d = payload.data || {};
+  return self.registration.showNotification(d.title || '🏠 Young Family', {
+    body: d.body || '',
+    icon: 'https://acmdad17.github.io/youngfamilychoreapp/icon-192.png',
+    badge:'https://acmdad17.github.io/youngfamilychoreapp/icon-192.png',
+    vibrate: [300,100,300,100,300],
+    tag: d.type || 'alert',
     renotify: true,
-    data:    payload.data || {},
+    requireInteraction: true,
+    data: d,
   });
 });
 

@@ -16,31 +16,30 @@ exports.sendFamilyAlertPush = onValueCreated(
     const db = getDatabase();
     const tokensSnap = await db.ref('fcmTokens').once('value');
     const tokensObj  = tokensSnap.val() || {};
-    const tokens     = Object.values(tokensObj).filter(Boolean);
+    const tokens = Object.values(tokensObj)
+      .map(v => typeof v === 'string' ? v : v?.token)
+      .filter(Boolean);
     if (!tokens.length) return;
 
     const response = await getMessaging().sendEachForMulticast({
       tokens,
-      notification: {
+      data: {
         title: `${alert.emoji || '🔔'} ${alert.label}`,
         body:  `${alert.triggeredBy} needs a hand — tap to respond`,
+        type:  alert.type || 'alert',
+        alertId: event.params.alertId,
       },
       webpush: {
-        notification: {
-          tag:      alert.type,   // collapses duplicate alerts of same type
-          renotify: true,
-          vibrate:  [300, 100, 300, 100, 300],
-        },
-        fcmOptions: {
-          link: 'https://acmdad17.github.io/youngfamilychoreapp/',
-        },
+        headers: { Urgency: 'high', TTL: '600' },
+        fcmOptions: { link: 'https://acmdad17.github.io/youngfamilychoreapp/' },
       },
     });
 
     // Remove tokens that are no longer valid
     const badKeys = Object.entries(tokensObj)
-      .filter(([, token]) => {
-        const idx = tokens.indexOf(token);
+      .filter(([, v]) => {
+        const tok = typeof v === 'string' ? v : v?.token;
+        const idx = tokens.indexOf(tok);
         return idx >= 0 && !response.responses[idx].success;
       })
       .map(([key]) => key);

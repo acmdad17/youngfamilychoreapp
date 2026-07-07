@@ -1524,12 +1524,18 @@ async function subscribePush(){
       vapidKey:VAPID_KEY,
       serviceWorkerRegistration:await navigator.serviceWorker.ready,
     });
-    if(token)await set(ref(db,`fcmTokens/${deviceId}`),token);
+    if(token)await set(ref(db,`fcmTokens/${deviceId}`),{
+      token,
+      person: currentUser?.name||'Guest',
+      platform: /iphone|ipad/i.test(navigator.userAgent)?'ios':/android/i.test(navigator.userAgent)?'android':'desktop',
+      standalone: navigator.standalone===true||matchMedia('(display-mode: standalone)').matches,
+      updatedAt: Date.now(),
+    });
 
     // Show in-app toast when push arrives while app is open
     onMessage(messaging,payload=>{
-      const{title,body}=payload.notification||{};
-      showToast(`${title}${body?' — '+body:''}`);
+      const d=payload.data||payload.notification||{};
+      showToast(`${d.title||''}${d.body?' — '+d.body:''}`);
     });
   }catch(e){
     console.warn('Push subscription failed:',e);
@@ -1914,7 +1920,9 @@ async function undoChore(choreId,person){
   if(!entries.length)return;
   await dbRemove(`choreLog/${todayStr}/${choreId}/${entries[entries.length-1][0]}`);
   const pts=chores[choreId]?.points||1;
+  const name=chores[choreId]?.name||choreId;
   await dbTransaction(`points/${person}/total`,cur=>Math.max(0,(cur||0)-pts));
+  await dbPush('pointsLedger',{person,delta:-pts,reason:'undo: '+name,type:'undo',ts:Date.now()});
   showToast(`Undone for ${person} (-${pts} pts)`);
 }
 async function deleteChore(id){
@@ -2471,9 +2479,17 @@ let familyAlerts={};
 let currentAlertId=null;
 let lastAlertSeen=localStorage.getItem('young_lastAlertSeen');
 
+let _audioCtx=null;
+function getAudioCtx(){
+  if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(_audioCtx.state==='suspended')_audioCtx.resume().catch(()=>{});
+  return _audioCtx;
+}
+document.addEventListener('pointerdown',()=>getAudioCtx(),{once:true});
+
 function playDing(){
   try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const ctx=getAudioCtx();
     [[880,.0],[660,.18]].forEach(([freq,delay])=>{
       const osc=ctx.createOscillator(),gain=ctx.createGain();
       osc.connect(gain);gain.connect(ctx.destination);
