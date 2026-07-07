@@ -263,6 +263,15 @@
   .main{padding:16px 32px 32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;
     max-width:1280px;margin:0 auto;width:100%;}
 
+  /* PRESENCE STRIP */
+  #presence-strip{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .presence-chip{display:flex;align-items:center;gap:5px;padding:3px 10px 3px 8px;
+    border-radius:20px;font-size:var(--text-xs);font-weight:600;
+    border:1px solid var(--border);background:var(--surface2);transition:all .3s;}
+  .presence-chip.home{border-color:#4ade8088;background:#4ade8011;color:#4ade80;}
+  .presence-chip.away{border-color:var(--border);color:var(--muted);}
+  .presence-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
   /* COUNTDOWN STRIP */
   #countdown-strip{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   .countdown-chip{display:flex;align-items:center;gap:10px;
@@ -988,6 +997,9 @@
           font-weight:600;outline:none;cursor:pointer;min-width:140px;"></select>
     </div>
 
+    <!-- Presence strip -->
+    <div id="presence-strip" data-tab="home" style="display:none;padding:4px 12px 0;"></div>
+
     <!-- Countdown strip -->
     <div id="countdown-strip" data-tab="home"></div>
 
@@ -1173,6 +1185,7 @@ let calEvents={};
 let allowance={};
 let pointsLedger={};
 let redeemRequests={};
+let presence={};
 
 let selectedDate=todayStr;
 let selectedGroceryCat='All';
@@ -1272,12 +1285,31 @@ function subscribeAll(){
     ov(ref(db,'streaks'),       snap=>{streaks      =snap.val()||{};renderChores();renderMembers();renderPointsTab();},noop);
     ov(ref(db,'calEvents'),     snap=>{calEvents    =snap.val()||{};renderAll();},noop);
     ov(ref(db,'familyAlerts'),  snap=>{familyAlerts =snap.val()||{};handleAlertsUpdate(familyAlerts);},noop);
+    ov(ref(db,'presence'),      snap=>{presence     =snap.val()||{};renderPresenceStrip();},noop);
     // HA appliance triggers → mirror to familyAlerts with deterministic key to prevent race duplicates
     ov(ref(db,'ha_triggers'), snap=>{
       const triggers=snap.val()||{};
-      Object.entries(triggers)
-        .filter(([,t])=>t.active!==false&&!t._processed&&(Date.now()-(t.triggeredAt||0))<600000)
-        .forEach(([id,t])=>{
+      const now=Date.now();
+      const ONE_HOUR=3600000;
+      const TEN_MIN=600000;
+      Object.entries(triggers).forEach(([id,t])=>{
+        // Delete entries older than 1 hour
+        if((now-(t.triggeredAt||0))>ONE_HOUR){
+          window._fb.remove(ref(db,`ha_triggers/${id}`));
+          return;
+        }
+        // Skip already-processed or explicitly inactive entries
+        if(t._processed||t.active===false) return;
+        // Skip entries older than 10 minutes (too stale to show)
+        if((now-(t.triggeredAt||0))>TEN_MIN) return;
+        // Handle presence updates (type=presence → write to presence/ not familyAlerts)
+        if(t.type==='presence'&&t.label){
+          window._fb.update(ref(db,`presence/${t.label}`),{
+            state:t.emoji||'not_home',
+            updatedAt:t.triggeredAt||Date.now()
+          });
+        } else {
+          // Mirror to familyAlerts
           const typeMap={washer:'laundry',dishwasher:'dishwasher'};
           const appType=typeMap[t.type]||t.type;
           const at=ALERT_TYPES.find(a=>a.type===appType)||
@@ -1288,7 +1320,10 @@ function subscribeAll(){
             triggeredAt:t.triggeredAt||Date.now(),
             claimedBy:null,active:true
           });
-        });
+        }
+        // Mark processed so other open clients don't re-mirror
+        window._fb.update(ref(db,`ha_triggers/${id}`),{_processed:true});
+      });
     },noop);
     onValue(allowanceRef(),         snap=>{allowance      =snap.val()||{};renderPointsTab();renderMembers();},noop);
     ov(ref(db,'pointsLedger'),      snap=>{pointsLedger   =snap.val()||{};renderPointsTab();},noop);
@@ -1502,6 +1537,7 @@ function renderAll(){
   renderMyDayBanner();
   renderFilterChips();
   renderAnnouncements();
+  renderPresenceStrip();
   renderCountdownStrip();
   renderWeek();
   renderSelectedDay();
@@ -1591,6 +1627,30 @@ async function saveAnnouncement(){
   closeAnncModal();showToast('📢 Posted');
 }
 async function deleteAnnouncement(id){await dbRemove(`announcements/${id}`);}
+
+// ── PRESENCE STRIP ──
+const PRESENCE_MEMBERS=[
+  {key:'Bradford',emoji:'🧑'},
+  {key:'Brooke',emoji:'👩'},
+  {key:'Christian',emoji:'👦'},
+];
+function renderPresenceStrip(){
+  const strip=document.getElementById('presence-strip');
+  if(!strip)return;
+  const entries=PRESENCE_MEMBERS.filter(m=>presence[m.key]);
+  if(!entries.length){strip.style.display='none';return;}
+  strip.style.display='flex';
+  strip.innerHTML='';
+  entries.forEach(({key,emoji})=>{
+    const p=presence[key];
+    const isHome=p?.state==='home';
+    const chip=document.createElement('div');
+    chip.className='presence-chip '+(isHome?'home':'away');
+    chip.innerHTML=`<span class="presence-dot"></span>${emoji} ${key}`;
+    chip.title=isHome?'Home':'Away';
+    strip.appendChild(chip);
+  });
+}
 
 // ── COUNTDOWN STRIP ──
 function renderCountdownStrip(){

@@ -1,8 +1,11 @@
 @echo off
 cd /d "%~dp0"
 git add -A
-git commit -m "%~1"
-git push
+if "%~1"=="" (
+  git commit -m "Update app"
+) else (
+  git commit -m "%~1"
+)
 git push origin master:main
 echo.
 echo Deploy complete.
