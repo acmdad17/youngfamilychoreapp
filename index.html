@@ -1872,12 +1872,20 @@ function renderPresenceStrip(){
   entries.forEach(({key,emoji})=>{
     const p=presence[key];
     const isHome=p?.state==='home';
+    const isManual=p?.source==='manual';
+    const isMe=currentUser&&currentUser.name===key;
     const chip=document.createElement('div');
     chip.className='presence-chip '+(isHome?'home':'away');
-    chip.innerHTML=`<span class="presence-dot"></span>${emoji} ${key}`;
-    chip.title=isHome?'Home':'Away';
+    chip.innerHTML=`<span class="presence-dot"></span>${emoji} ${key}${isManual?' <span title="Manually set" style="font-size:.75em;">✋</span>':''}`;
+    chip.title=(isHome?'Home':'Away')+(isManual?' (manual)':(isMe?' · tap to toggle':''));
+    if(isMe){chip.style.cursor='pointer';chip.onclick=()=>toggleMyPresence(key,isHome);}
     strip.appendChild(chip);
   });
+}
+async function toggleMyPresence(key,currentlyHome){
+  const newState=currentlyHome?'not_home':'home';
+  await dbUpdate(`presence/${key}`,{state:newState,updatedAt:Date.now(),source:'manual'});
+  showToast(newState==='home'?'Marked as Home ✋':'Marked as Away ✋');
 }
 
 // ── COUNTDOWN STRIP ──
