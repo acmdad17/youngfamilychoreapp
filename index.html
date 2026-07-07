@@ -1287,7 +1287,7 @@ function subscribeAll(){
     ov(ref(db,'streaks'),       snap=>{streaks      =snap.val()||{};renderChores();renderMembers();renderPointsTab();},noop);
     ov(ref(db,'calEvents'),     snap=>{calEvents    =snap.val()||{};renderAll();},noop);
     ov(ref(db,'familyAlerts'),  snap=>{familyAlerts =snap.val()||{};handleAlertsUpdate(familyAlerts);},noop);
-    ov(ref(db,'presence'),      snap=>{presence     =snap.val()||{};renderPresenceStrip();},noop);
+    ov(ref(db,'presence'),      snap=>{presence     =snap.val()||{};renderPresenceStrip();renderMembers();},noop);
     // HA appliance triggers → mirror to familyAlerts with deterministic key to prevent race duplicates
     ov(ref(db,'ha_triggers'), snap=>{
       const triggers=snap.val()||{};
@@ -1783,8 +1783,10 @@ function renderMembers(){
     const isWork=dayEvts.some(e=>e.type==='work');
     const isAway=dayEvts.some(e=>e.type==='travel'||e.type==='away');
     const isMe=currentUser&&m.key===currentUser.name;
-    const statusLabel=isAway?'✈️ Away':isWork?'💼 At Work':'🏠 Home';
-    const statusCls=isAway?'status-away':isWork?'status-work':'status-home';
+    const presenceState=presence[m.key]?.state; // 'home', 'not_home', or undefined
+    const isPhysicallyAway=presenceState==='not_home';
+    const statusLabel=isAway?'✈️ Away':isWork?'💼 At Work':isPhysicallyAway?'🚗 Away':'🏠 Home';
+    const statusCls=isAway?'status-away':isWork?'status-work':isPhysicallyAway?'status-away':'status-home';
     const pts=points[m.key]?.total||0;
     const lv=getLevel(pts);
     const topStreak=getBestStreak(m.key);
