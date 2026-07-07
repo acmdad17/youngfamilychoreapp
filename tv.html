@@ -8,7 +8,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -26,13 +26,259 @@
   const auth = getAuth(app);
   const noop = () => {};
 
-  window._tvdb = { ref, onValue, db };
+  // ── DATA ──
+  const MEMBERS = [
+    {key:'Bradford', role:'Bomb Squad / Dad',   emoji:'👨', color:'#ff8c42'},
+    {key:'Brooke',   role:'Creative Academy',   emoji:'👩', color:'#ff7eb3'},
+    {key:'Audrey',   role:'Hendrix College',    emoji:'👧', color:'#ffd166'},
+    {key:'Christian',role:'Work & School',      emoji:'👦', color:'#06d6a0'},
+    {key:'Mitchum',  role:'Band & School',      emoji:'🎺', color:'#4fc3f7'},
+  ];
+  const PRESENCE_MEMBERS = [
+    {key:'Bradford',emoji:'👨'},{key:'Brooke',emoji:'👩'},
+    {key:'Christian',emoji:'👦'},{key:'Audrey',emoji:'👧'},{key:'Mitchum',emoji:'🎺'},
+  ];
+  const MEMBER_COLORS = Object.fromEntries(MEMBERS.map(m=>[m.key,m.color]));
 
-  signInAnonymously(auth).then(() => {
-    document.dispatchEvent(new Event('fb-ready'));
-  }).catch(() => {
-    document.dispatchEvent(new Event('fb-ready'));
-  });
+  let events={}, chores={}, choreLog={}, countdowns={}, presence={};
+  let familyAlerts={}, meals={}, announcements={}, points={}, haTriggersData={};
+  let currentAlertId=null, lastAlertSeen=null;
+
+  function fmtDate(d){return d.toLocaleDateString('en-CA');}
+  function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  const today=new Date();
+  const todayStr=fmtDate(today);
+  const todayDow=today.getDay();
+
+  function eventOccursOn(evt,dateStr){
+    if(!evt.recurring||evt.recurring==='none') return evt.date===dateStr;
+    if(dateStr<evt.date) return false;
+    if(evt.recurringEnd&&dateStr>evt.recurringEnd) return false;
+    const base=new Date(evt.date+'T12:00:00');
+    const tgt=new Date(dateStr+'T12:00:00');
+    const diff=Math.round((tgt-base)/86400000);
+    if(evt.recurring==='daily') return true;
+    if(evt.recurring==='weekly') return diff%7===0;
+    if(evt.recurring==='biweekly') return diff%14===0;
+    if(evt.recurring==='monthly'){return new Date(evt.date+'T12:00:00').getDate()===new Date(dateStr+'T12:00:00').getDate();}
+    return false;
+  }
+
+  // ── CLOCK ──
+  function updateClock(){
+    const now=new Date();
+    const h=String(now.getHours()).padStart(2,'0');
+    const m=String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('tv-clock').textContent=`${h}:${m}`;
+    const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('tv-date').innerHTML=`${days[now.getDay()]}<br>${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+  }
+  setInterval(updateClock,1000);
+  updateClock();
+
+  // ── WEATHER ──
+  function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=49)return'🌫️';if(c<=59)return'🌦️';if(c<=69)return'🌧️';if(c<=79)return'🌨️';if(c<=82)return'🌧️';if(c<=99)return'⛈️';return'🌤️';}
+  function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
+  async function fetchWeather(){
+    try{
+      const d=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude=36.3348&longitude=-92.3849&current_weather=true&temperature_unit=fahrenheit')).json();
+      const cw=d.current_weather;
+      document.querySelector('.w-icon').textContent=wmoIcon(cw.weathercode);
+      document.getElementById('w-temp').textContent=Math.round(cw.temperature)+'°F';
+      document.getElementById('w-desc').textContent=wmoDesc(cw.weathercode);
+    }catch(e){}
+  }
+  fetchWeather();
+  setInterval(fetchWeather,30*60*1000);
+
+  // ── PRESENCE ──
+  function renderPresence(){
+    const strip=document.getElementById('tv-presence');
+    strip.innerHTML='';
+    PRESENCE_MEMBERS.forEach(({key,emoji})=>{
+      const p=presence[key];
+      if(!p) return;
+      const isHome=p.state==='home';
+      const chip=document.createElement('div');
+      chip.className='pchip '+(isHome?'home':'away');
+      chip.innerHTML=`<span class="pdot"></span>${emoji} ${key}`;
+      strip.appendChild(chip);
+    });
+  }
+
+  // ── EVENTS ──
+  function fmtTime(t){
+    if(!t) return 'All day';
+    const[h,m]=t.split(':').map(Number);
+    return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`;
+  }
+  function renderEvents(){
+    const list=document.getElementById('events-list');
+    const evArr=Object.values(events).filter(e=>eventOccursOn(e,todayStr))
+      .sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+    if(!evArr.length){list.innerHTML='<div class="empty-msg">No events today — enjoy! 🎉</div>';return;}
+    const typeEmoji={work:'💼',travel:'✈️',away:'🚗',personal:'⭐',school:'📚'};
+    list.innerHTML=evArr.map(e=>{
+      const col=MEMBER_COLORS[e.person]||'#f59e0b';
+      return `<div class="ev-item" style="border-left-color:${col}">
+        <div class="ev-time">${fmtTime(e.time)}</div>
+        <div class="ev-body">
+          <div class="ev-title">${typeEmoji[e.type]||'📅'} ${e.title}</div>
+          <div class="ev-who" style="color:${col}">${e.person}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── CHORES ──
+  function renderChores(){
+    const list=document.getElementById('chores-list');
+    const arr=Object.entries(chores)
+      .filter(([,c])=>!c.scheduleDays||!c.scheduleDays.length||c.scheduleDays.includes(todayDow))
+      .sort(([,a],[,b])=>(a.name||'').localeCompare(b.name||''));
+    if(!arr.length){list.innerHTML='<div class="empty-msg">No chores today 🎉</div>';return;}
+    list.innerHTML=arr.map(([id,chore])=>{
+      const todayLog=choreLog[todayStr]?.[id]||{};
+      const done=Object.values(todayLog).length>0;
+      const doers=[...new Set(Object.values(todayLog).map(e=>e.person))];
+      const assigned=chore.assignedTo||[];
+      const whoStr=done?`Done — ${doers.join(', ')}`:assigned.length?`→ ${assigned.join(', ')}`:'Open';
+      const whoColor=done?'#34d399':(MEMBER_COLORS[assigned[0]]||'#8899b0');
+      return `<div class="chore-row${done?' done':''}">
+        <div class="chore-check">${done?'✓':''}</div>
+        <div class="chore-body">
+          <div class="chore-name">${chore.name||'Chore'}</div>
+          <div class="chore-who" style="color:${whoColor}">${whoStr}</div>
+        </div>
+        <div class="chore-pts">+${chore.points||1}⭐</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── MEMBERS ──
+  function renderMembers(){
+    const list=document.getElementById('members-list');
+    list.innerHTML=MEMBERS.map(m=>{
+      const p=presence[m.key];
+      const isPhysAway=p?.state==='not_home';
+      const memberEvents=Object.values(events).filter(e=>eventOccursOn(e,todayStr)&&e.person===m.key);
+      const isWork=memberEvents.some(e=>e.type==='work');
+      const isAway=memberEvents.some(e=>e.type==='travel'||e.type==='away');
+      const statusLabel=isAway?'✈️ Away':isWork?'💼 Work':isPhysAway?'🚗 Away':'🏠 Home';
+      const statusCls=isAway||isPhysAway?'s-away':isWork?'s-work':'s-home';
+      const pts=points[m.key]?.total||0;
+      return `<div class="member-row" style="border-left:3px solid ${m.color}">
+        <div class="member-avatar" style="background:${m.color}18;border:2px solid ${m.color}">${m.emoji}</div>
+        <div class="member-name">${m.key}</div>
+        ${pts>0?`<div class="member-pts">${pts}⭐</div>`:''}
+        <div class="member-status ${statusCls}">${statusLabel}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── MEALS ──
+  function renderMeals(){
+    const dinner=meals[todayStr]?.dinner;
+    const section=document.getElementById('dinner-section');
+    if(!dinner){section.style.display='none';return;}
+    section.style.display='block';
+    document.getElementById('meals-list').innerHTML=`<div class="meal-row"><span class="meal-label">🍴 ${dinner}</span></div>`;
+  }
+
+  // ── COUNTDOWNS ──
+  function renderCountdowns(){
+    const arr=Object.values(countdowns)
+      .map(c=>{const target=new Date(c.targetDate+'T'+(c.targetTime||'00:00:00'));return{...c,diff:Math.ceil((target-Date.now())/86400000)};})
+      .filter(c=>c.diff>=0).sort((a,b)=>a.diff-b.diff).slice(0,5);
+    const section=document.getElementById('countdown-section');
+    if(!arr.length){section.style.display='none';return;}
+    section.style.display='block';
+    document.getElementById('countdown-list').innerHTML=arr.map(c=>`<div class="cd-item">
+      <div class="cd-icon">${c.icon||'⏳'}</div>
+      <div class="cd-body">
+        <div class="cd-label">${c.label}</div>
+        <div class="cd-days">${c.diff===0?'Today!':c.diff===1?'Tomorrow':c.diff+' days away'}</div>
+      </div>
+    </div>`).join('');
+  }
+
+  // ── ANNOUNCEMENTS ──
+  function renderAnnouncements(){
+    const inner=document.getElementById('annc-inner');
+    const arr=Object.values(announcements).sort((a,b)=>b.created-a.created);
+    inner.textContent=arr.length?arr.map(a=>`${a.emoji||'📢'} ${a.text}`).join('    •    '):'Young Family Dashboard — Live';
+  }
+
+  // ── ALERTS ──
+  const ALERT_TTL=10*60*1000;
+  function handleAlerts(){
+    const active=Object.entries(familyAlerts)
+      .sort(([,a],[,b])=>b.triggeredAt-a.triggeredAt)
+      .find(([,a])=>a.active&&(Date.now()-a.triggeredAt)<ALERT_TTL);
+    if(active){
+      const[id,alert]=active;
+      if(id!==lastAlertSeen){lastAlertSeen=id;showAlert(id,alert);}
+    } else if(currentAlertId){
+      const a=familyAlerts[currentAlertId];
+      if(a&&a.claimedBy){
+        document.getElementById('a-who').style.display='block';
+        document.getElementById('a-who').textContent=`✅ ${a.claimedBy} is on it!`;
+        setTimeout(dismissAlert,2500);
+      } else if(a&&!a.active){
+        dismissAlert();
+      }
+    }
+  }
+
+  function showAlert(id,alert){
+    currentAlertId=id;
+    document.getElementById('a-icon').textContent=alert.emoji||'🔔';
+    document.getElementById('a-title').textContent=alert.label;
+    document.getElementById('a-body').textContent=`${alert.triggeredBy} needs a hand`;
+    document.getElementById('alert-card').style.borderColor=alert.color||'#10b981';
+    document.getElementById('a-who').style.display='none';
+    document.getElementById('a-claim').style.display='';
+    document.getElementById('alert-overlay').classList.add('open');
+  }
+
+  function dismissAlert(){
+    currentAlertId=null;
+    document.getElementById('alert-overlay').classList.remove('open');
+  }
+
+  window.dismissAlert=dismissAlert;
+  window.claimAlert=async function(){
+    if(!currentAlertId)return;
+    try{await update(ref(db,`familyAlerts/${currentAlertId}`),{claimedBy:'TV Display',active:false});}catch(e){}
+    document.getElementById('a-claim').style.display='none';
+    document.getElementById('a-who').style.display='block';
+    document.getElementById('a-who').textContent='✅ Got it!';
+    setTimeout(dismissAlert,2000);
+  };
+
+  // ── SUBSCRIBE ──
+  signInAnonymously(auth).then(()=>{
+    onValue(ref(db,'events'),        s=>{events=s.val()||{};renderEvents();renderMembers();},noop);
+    onValue(ref(db,'chores'),        s=>{chores=s.val()||{};renderChores();},noop);
+    onValue(ref(db,'choreLog'),      s=>{choreLog=s.val()||{};renderChores();},noop);
+    onValue(ref(db,'countdowns'),    s=>{countdowns=s.val()||{};renderCountdowns();},noop);
+    onValue(ref(db,'presence'),      s=>{presence=s.val()||{};renderPresence();renderMembers();},noop);
+    onValue(ref(db,'familyAlerts'),  s=>{familyAlerts=s.val()||{};handleAlerts();},noop);
+    onValue(ref(db,'announcements'), s=>{announcements=s.val()||{};renderAnnouncements();},noop);
+    onValue(ref(db,'meals'),         s=>{meals=s.val()||{};renderMeals();},noop);
+    onValue(ref(db,'points'),        s=>{points=s.val()||{};renderMembers();},noop);
+    onValue(ref(db,'ha_triggers'),   s=>{
+      haTriggersData=s.val()||{};
+      const now=Date.now();
+      Object.values(haTriggersData).forEach(t=>{
+        if(t.type==='presence'&&t.label&&!t._processed&&(now-(t.triggeredAt||0))<600000){
+          presence[t.label]={state:t.emoji||'not_home',updatedAt:t.triggeredAt||now};
+        }
+      });
+      renderPresence();renderMembers();
+    },noop);
+  }).catch(()=>{});
 </script>
 
 <style>
@@ -552,320 +798,6 @@ body {
   </div>
 </div>
 
-<script>
-// ── DATA ──
-const MEMBERS = [
-  {key:'Bradford', role:'Bomb Squad / Dad',   cls:'bradford', emoji:'👨', color:'#ff8c42'},
-  {key:'Brooke',   role:'Creative Academy',   cls:'brooke',   emoji:'👩', color:'#ff7eb3'},
-  {key:'Audrey',   role:'Hendrix College',     cls:'audrey',   emoji:'👧', color:'#ffd166'},
-  {key:'Christian',role:'Work & School',       cls:'christian',emoji:'👦', color:'#06d6a0'},
-  {key:'Mitchum',  role:'Band & School',       cls:'mitchum',  emoji:'🎺', color:'#4fc3f7'},
-];
-const PRESENCE_MEMBERS = [
-  {key:'Bradford',emoji:'👨'},{key:'Brooke',emoji:'👩'},
-  {key:'Christian',emoji:'👦'},{key:'Audrey',emoji:'👧'},{key:'Mitchum',emoji:'🎺'},
-];
-
-let events={}, chores={}, choreLog={}, countdowns={}, presence={}, familyAlerts={};
-let meals={}, announcements={}, points={}, haTriggersData={};
-let currentAlertId=null;
-
-function fmtDate(d){return d.toLocaleDateString('en-CA');}
-function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
-const today=new Date();
-const todayStr=fmtDate(today);
-const todayDow=today.getDay();
-
-function eventOccursOn(evt,dateStr){
-  if(!evt.recurring||evt.recurring==='none') return evt.date===dateStr;
-  if(dateStr<evt.date) return false;
-  if(evt.recurringEnd&&dateStr>evt.recurringEnd) return false;
-  const base=new Date(evt.date+'T12:00:00');
-  const tgt=new Date(dateStr+'T12:00:00');
-  const diff=Math.round((tgt-base)/(86400000));
-  if(evt.recurring==='daily') return true;
-  if(evt.recurring==='weekly') return diff%7===0;
-  if(evt.recurring==='biweekly') return diff%14===0;
-  if(evt.recurring==='monthly'){
-    const bd=new Date(evt.date+'T12:00:00');
-    const td=new Date(dateStr+'T12:00:00');
-    return bd.getDate()===td.getDate();
-  }
-  return false;
-}
-
-// ── CLOCK ──
-function updateClock(){
-  const now=new Date();
-  const h=String(now.getHours()).padStart(2,'0');
-  const m=String(now.getMinutes()).padStart(2,'0');
-  const s=String(now.getSeconds()).padStart(2,'0');
-  document.getElementById('tv-clock').textContent=`${h}:${m}`;
-  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('tv-date').innerHTML=`${days[now.getDay()]}<br>${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
-}
-setInterval(updateClock,1000);
-updateClock();
-
-// ── WEATHER ──
-function wmoIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';if(c<=49)return'🌫️';if(c<=59)return'🌦️';if(c<=69)return'🌧️';if(c<=79)return'🌨️';if(c<=82)return'🌧️';if(c<=99)return'⛈️';return'🌤️';}
-function wmoDesc(c){if(c===0)return'Clear';if(c<=2)return'Partly Cloudy';if(c<=3)return'Overcast';if(c<=49)return'Foggy';if(c<=59)return'Drizzle';if(c<=69)return'Rainy';if(c<=79)return'Snowy';if(c<=82)return'Showers';if(c<=99)return'Thunderstorm';return'Variable';}
-
-async function fetchWeather(){
-  try{
-    const d=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude=36.3348&longitude=-92.3849&current_weather=true&temperature_unit=fahrenheit')).json();
-    const cw=d.current_weather;
-    document.querySelector('.w-icon').textContent=wmoIcon(cw.weathercode);
-    document.getElementById('w-temp').textContent=Math.round(cw.temperature)+'°F';
-    document.getElementById('w-desc').textContent=wmoDesc(cw.weathercode);
-  }catch(e){document.getElementById('w-desc').textContent='Unavailable';}
-}
-fetchWeather();
-setInterval(fetchWeather, 30*60*1000);
-
-// ── PRESENCE STRIP ──
-function renderPresence(){
-  const strip=document.getElementById('tv-presence');
-  strip.innerHTML='';
-  PRESENCE_MEMBERS.forEach(({key,emoji})=>{
-    const p=presence[key];
-    if(!p) return;
-    const isHome=p.state==='home';
-    const chip=document.createElement('div');
-    chip.className='pchip '+(isHome?'home':'away');
-    chip.innerHTML=`<span class="pdot"></span>${emoji} ${key}`;
-    strip.appendChild(chip);
-  });
-}
-
-// ── EVENTS ──
-function fmtTime(t){
-  if(!t) return '';
-  const[h,m]=t.split(':').map(Number);
-  const ampm=h>=12?'PM':'AM';
-  const h12=h%12||12;
-  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
-}
-
-function renderEvents(){
-  const list=document.getElementById('events-list');
-  const evArr=Object.values(events).filter(e=>eventOccursOn(e,todayStr))
-    .sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
-  if(!evArr.length){list.innerHTML='<div class="empty-msg">No events today — enjoy! 🎉</div>';return;}
-  const memberColors=Object.fromEntries(MEMBERS.map(m=>[m.key,m.color]));
-  list.innerHTML=evArr.map(e=>{
-    const col=memberColors[e.person]||'#f59e0b';
-    const typeEmoji={work:'💼',travel:'✈️',away:'🚗',personal:'⭐',school:'📚'}[e.type]||'📅';
-    return `<div class="ev-item" style="border-left-color:${col}">
-      <div class="ev-time">${e.time?fmtTime(e.time):'All day'}</div>
-      <div class="ev-body">
-        <div class="ev-title">${typeEmoji} ${e.title}</div>
-        <div class="ev-who" style="color:${col}">${e.person}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ── CHORES ──
-function renderChores(){
-  const list=document.getElementById('chores-list');
-  const memberColors=Object.fromEntries(MEMBERS.map(m=>[m.key,m.color]));
-  const arr=Object.entries(chores)
-    .filter(([,c])=>!c.scheduleDays||!c.scheduleDays.length||c.scheduleDays.includes(todayDow))
-    .sort(([,a],[,b])=>(a.name||'').localeCompare(b.name||''));
-
-  if(!arr.length){list.innerHTML='<div class="empty-msg">No chores today 🎉</div>';return;}
-
-  list.innerHTML=arr.map(([id,chore])=>{
-    const todayLog=choreLog[todayStr]?.[id]||{};
-    const done=Object.values(todayLog).length>0;
-    const doers=[...new Set(Object.values(todayLog).map(e=>e.person))];
-    const assigned=chore.assignedTo||[];
-    const whoStr=done?`Done by ${doers.join(', ')}`:assigned.length?`→ ${assigned.join(', ')}`:'Open';
-    const whoColor=done?'#34d399':(assigned[0]?memberColors[assigned[0]]||'#8899b0':'#8899b0');
-    return `<div class="chore-row${done?' done':''}">
-      <div class="chore-check">${done?'✓':''}</div>
-      <div class="chore-body">
-        <div class="chore-name">${chore.name||'Chore'}</div>
-        <div class="chore-who" style="color:${whoColor}">${whoStr}</div>
-      </div>
-      <div class="chore-pts">+${chore.points||1}⭐</div>
-    </div>`;
-  }).join('');
-}
-
-// ── MEMBERS ──
-function renderMembers(){
-  const list=document.getElementById('members-list');
-  list.innerHTML=MEMBERS.map(m=>{
-    const p=presence[m.key];
-    const isPhysAway=p?.state==='not_home';
-    const memberEvents=Object.values(events).filter(e=>eventOccursOn(e,todayStr)&&e.person===m.key);
-    const isWork=memberEvents.some(e=>e.type==='work');
-    const isAway=memberEvents.some(e=>e.type==='travel'||e.type==='away');
-    const statusLabel=isAway?'✈️ Away':isWork?'💼 Work':isPhysAway?'🚗 Away':'🏠 Home';
-    const statusCls=isAway||isPhysAway?'s-away':isWork?'s-work':'s-home';
-    const pts=points[m.key]?.total||0;
-    return `<div class="member-row" style="border-left:3px solid ${m.color}22">
-      <div class="member-avatar" style="background:${m.color}18;border:2px solid ${m.color}">${m.emoji}</div>
-      <div class="member-name">${m.key}</div>
-      ${pts>0?`<div class="member-pts">${pts}⭐</div>`:''}
-      <div class="member-status ${statusCls}">${statusLabel}</div>
-    </div>`;
-  }).join('');
-}
-
-// ── MEALS ──
-function renderMeals(){
-  const dinner=meals[todayStr]?.dinner;
-  const section=document.getElementById('dinner-section');
-  const list=document.getElementById('meals-list');
-  if(!dinner){section.style.display='none';return;}
-  section.style.display='block';
-  list.innerHTML=`<div class="meal-row"><span class="meal-label">🍴 ${dinner}</span></div>`;
-}
-
-// ── COUNTDOWNS ──
-function renderCountdowns(){
-  const arr=Object.values(countdowns)
-    .map(c=>{
-      const target=new Date(c.targetDate+'T'+(c.targetTime||'00:00:00'));
-      const diff=Math.ceil((target-Date.now())/(86400000));
-      return{...c,diff};
-    })
-    .filter(c=>c.diff>=0)
-    .sort((a,b)=>a.diff-b.diff)
-    .slice(0,5);
-
-  const section=document.getElementById('countdown-section');
-  const list=document.getElementById('countdown-list');
-  if(!arr.length){section.style.display='none';return;}
-  section.style.display='block';
-  list.innerHTML=arr.map(c=>`<div class="cd-item">
-    <div class="cd-icon">${c.icon||'⏳'}</div>
-    <div class="cd-body">
-      <div class="cd-label">${c.label}</div>
-      <div class="cd-days">${c.diff===0?'Today!':c.diff===1?'Tomorrow':c.diff+' days'}</div>
-    </div>
-  </div>`).join('');
-}
-
-// ── ANNOUNCEMENTS TICKER ──
-function renderAnnouncements(){
-  const inner=document.getElementById('annc-inner');
-  const arr=Object.values(announcements).sort((a,b)=>b.created-a.created);
-  if(!arr.length){inner.textContent='Young Family Dashboard — Live';return;}
-  inner.textContent=arr.map(a=>`${a.emoji||'📢'} ${a.text}`).join('    •    ');
-}
-
-// ── FAMILY ALERTS ──
-const ALERT_TTL=10*60*1000;
-let lastAlertSeen=null;
-
-function handleAlerts(){
-  const active=Object.entries(familyAlerts)
-    .sort(([,a],[,b])=>b.triggeredAt-a.triggeredAt)
-    .find(([,a])=>a.active&&(Date.now()-a.triggeredAt)<ALERT_TTL);
-
-  if(active){
-    const[id,alert]=active;
-    if(id!==lastAlertSeen){
-      lastAlertSeen=id;
-      showAlert(id,alert);
-    }
-  } else {
-    // Check if current alert was claimed/dismissed
-    if(currentAlertId){
-      const a=familyAlerts[currentAlertId];
-      if(a&&(!a.active||a.claimedBy)){
-        if(a.claimedBy){
-          document.getElementById('a-body').textContent='';
-          document.getElementById('a-who').style.display='block';
-          document.getElementById('a-who').textContent=`✅ ${a.claimedBy} is on it!`;
-          setTimeout(dismissAlert, 2500);
-        } else {
-          dismissAlert();
-        }
-      }
-    }
-  }
-}
-
-function showAlert(id,alert){
-  currentAlertId=id;
-  document.getElementById('a-icon').textContent=alert.emoji||'🔔';
-  document.getElementById('a-title').textContent=alert.label;
-  document.getElementById('a-body').textContent=`${alert.triggeredBy} needs a hand`;
-  document.getElementById('a-card')||document.getElementById('alert-card').style.borderColor=alert.color||'#10b981';
-  document.getElementById('alert-card').style.borderColor=alert.color||'#10b981';
-  document.getElementById('a-who').style.display='none';
-  document.getElementById('a-who').textContent='';
-  document.getElementById('a-claim').style.display='';
-  document.getElementById('alert-overlay').classList.add('open');
-}
-
-function dismissAlert(){
-  currentAlertId=null;
-  document.getElementById('alert-overlay').classList.remove('open');
-}
-
-async function claimAlert(){
-  if(!currentAlertId) return;
-  const {ref,db}=window._tvdb;
-  try{
-    const {update}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
-    await update(ref(db,`familyAlerts/${currentAlertId}`),{claimedBy:'TV Display',active:false});
-  }catch(e){console.warn('Claim failed',e);}
-  document.getElementById('a-claim').style.display='none';
-  document.getElementById('a-who').style.display='block';
-  document.getElementById('a-who').textContent='✅ Got it!';
-  setTimeout(dismissAlert,2000);
-}
-
-// ── HA TRIGGERS → PRESENCE ──
-function processHaTriggers(){
-  const now=Date.now();
-  const ONE_HOUR=3600000;
-  const TEN_MIN=600000;
-  Object.entries(haTriggersData).forEach(([id,t])=>{
-    if((now-(t.triggeredAt||0))>ONE_HOUR) return;
-    if(t._processed||t.active===false) return;
-    if((now-(t.triggeredAt||0))>TEN_MIN) return;
-    if(t.type==='presence'&&t.label){
-      presence[t.label]={state:t.emoji||'not_home',updatedAt:t.triggeredAt||now};
-      renderPresence();
-      renderMembers();
-    }
-  });
-}
-
-// ── RENDER ALL ──
-function renderAll(){
-  renderPresence();
-  renderEvents();
-  renderChores();
-  renderMembers();
-  renderMeals();
-  renderCountdowns();
-  renderAnnouncements();
-}
-
-// ── FIREBASE SUBSCRIBE ──
-document.addEventListener('fb-ready', () => {
-  const {ref,onValue,db}=window._tvdb;
-  const noop=()=>{};
-  onValue(ref(db,'events'),       s=>{events=s.val()||{};renderEvents();renderMembers();},noop);
-  onValue(ref(db,'chores'),       s=>{chores=s.val()||{};renderChores();},noop);
-  onValue(ref(db,'choreLog'),     s=>{choreLog=s.val()||{};renderChores();},noop);
-  onValue(ref(db,'countdowns'),   s=>{countdowns=s.val()||{};renderCountdowns();},noop);
-  onValue(ref(db,'presence'),     s=>{presence=s.val()||{};renderPresence();renderMembers();},noop);
-  onValue(ref(db,'familyAlerts'), s=>{familyAlerts=s.val()||{};handleAlerts();},noop);
-  onValue(ref(db,'announcements'),s=>{announcements=s.val()||{};renderAnnouncements();},noop);
-  onValue(ref(db,'meals'),        s=>{meals=s.val()||{};renderMeals();},noop);
-  onValue(ref(db,'points'),       s=>{points=s.val()||{};renderMembers();},noop);
-  onValue(ref(db,'ha_triggers'),  s=>{haTriggersData=s.val()||{};processHaTriggers();},noop);
-});
-</script>
+<!-- all logic lives in the module script above -->
 </body>
 </html>
