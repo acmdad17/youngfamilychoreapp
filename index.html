@@ -1759,6 +1759,7 @@ async function subscribePush(){
     });
   }catch(e){
     console.warn('Push subscription failed:',e);
+    showToast('Push reg failed: '+e.message,'error');
   }
 }
 
