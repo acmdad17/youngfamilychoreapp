@@ -1659,6 +1659,7 @@ function selectUser(name,emoji,color,cls){
   setTimeout(()=>ws.style.display='none',500);
   if(name!=='Guest'&&!window._switching){showWhatsNew(name);}
   else{window._switching=false;startApp();}
+  if(name!=='Guest'&&_pendingAlert){const{id,alert}=_pendingAlert;_pendingAlert=null;setTimeout(()=>showFamilyAlertOverlay(id,alert),800);}
 }
 
 function switchUser(){
@@ -2724,6 +2725,7 @@ function showFamilyAlertOverlay(id,alert){
     },1000);
   }
 }
+let _pendingAlert=null;
 function handleAlertsUpdate(newAlerts){
   const ALERT_TTL=600000;
   const active=Object.entries(newAlerts)
@@ -2733,7 +2735,11 @@ function handleAlertsUpdate(newAlerts){
     const[id,alert]=active;
     if(id!==lastAlertSeen){
       lastAlertSeen=id;localStorage.setItem('young_lastAlertSeen',id);
-      showFamilyAlertOverlay(id,alert);
+      if(currentUser&&currentUser.name!=='Guest'){
+        showFamilyAlertOverlay(id,alert);
+      }else{
+        _pendingAlert={id,alert}; // show once user selects themselves
+      }
     }
   }
   if(currentAlertId&&newAlerts[currentAlertId]&&!newAlerts[currentAlertId].active){
@@ -3134,6 +3140,7 @@ function goToObStep(n){showObStep(n);}
 function obSelectMember(m){
   currentUser={name:m.key,emoji:m.emoji,color:m.color,cls:m.cls};
   localStorage.setItem('young_user',JSON.stringify(currentUser));
+  if(_pendingAlert){const{id,alert}=_pendingAlert;_pendingAlert=null;setTimeout(()=>showFamilyAlertOverlay(id,alert),800);}
   // Update selected state visually
   document.querySelectorAll('#ob-member-grid .onboard-member-card').forEach((c,i)=>{
     c.classList.toggle('selected',MEMBERS[i].key===m.key);
