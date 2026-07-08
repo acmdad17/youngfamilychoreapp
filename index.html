@@ -1761,7 +1761,12 @@ async function subscribePush(){
     });
   }catch(e){
     console.warn('Push subscription failed:',e);
-    showToast('Push reg failed: '+e.message,'error');
+    showToast('Push reg failed: '+e.message);
+    // Log error to Firebase for remote debugging
+    try{
+      const {ref,set,db}=window._fb;
+      set(ref(db,'debug/pushError'),{msg:e.message,stack:(e.stack||'').slice(0,500),ts:Date.now(),ua:navigator.userAgent.slice(0,200)});
+    }catch(_){}
   }
 }
 
