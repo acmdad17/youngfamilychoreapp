@@ -759,8 +759,6 @@
     background:var(--danger-soft);color:var(--danger);display:inline-block;}
   @media(max-width:640px){.device-section-body.open{grid-template-columns:1fr;}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
-<script>eruda.init();</script>
 </head>
 <body>
 
@@ -1736,6 +1734,8 @@ const VAPID_KEY = 'BJXB0b2Y437M9d85qY4LIwRAQS0ieyBEmfxM7IO8X6ALyfY2qkCSWr1_VR-3W
 
 // Never auto-prompts — iOS requires a user gesture. Called after permission granted.
 async function subscribePush(){
+  // Diagnostic: log state to Firebase
+  try{const {ref,set,db}=window._fb;await set(ref(db,'debug/pushDiag'),{notifInWindow:('Notification'in window),permission:typeof Notification!=='undefined'?Notification.permission:'N/A',hasMessaging:!!window._fb?.messaging,standalone:navigator.standalone===true||matchMedia('(display-mode: standalone)').matches,ua:navigator.userAgent.slice(0,150),ts:Date.now()});}catch(_){}
   if(!('Notification' in window)||Notification.permission!=='granted'||!window._fb?.messaging)return;
   try{
     let deviceId=localStorage.getItem('young_device_id');
