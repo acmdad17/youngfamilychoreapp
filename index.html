@@ -3409,10 +3409,8 @@ function exportChoreCSV(){
   const rows=getFullHistoryRows();
   if(!rows.length){showToast('No data to export');return;}
   const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const csv='date,time,chore,person,points
-'+
-    rows.map(r=>[r.date,r.time||'',esc(r.choreName),r.person,r.points].join(',')).join('
-');
+  const csv='date,time,chore,person,points\n'+
+    rows.map(r=>[r.date,r.time||'',esc(r.choreName),r.person,r.points].join(',')).join('\n');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   const a=Object.assign(document.createElement('a'),{href:url,download:`choreLog_${fmtDate(new Date())}.csv`});
   document.body.appendChild(a);a.click();document.body.removeChild(a);
