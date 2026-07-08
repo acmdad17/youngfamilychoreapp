@@ -3424,12 +3424,8 @@ async function copyFullHistorySummary(){
   rows.forEach(r=>{(byDate[r.date]=byDate[r.date]||[]).push(r);});
   const lines=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,dayRows])=>{
     const label=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-    return label+'
-'+dayRows.map(r=>`  ${r.icon} ${r.choreName} — ${r.person} (+${r.points}pts)`).join('
-');
-  }).join('
-
-');
+    return label+'\n'+dayRows.map(r=>`  ${r.icon} ${r.choreName} — ${r.person} (+${r.points}pts)`).join('\n');
+  }).join('\n\n');
   const totalPts=rows.reduce((s,r)=>s+r.points,0);
   const summary=`Chore Log (${rows.length} completions, ${totalPts} pts)
 
