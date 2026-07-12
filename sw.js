@@ -74,7 +74,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
   if (e.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname === '/') {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request)));
     return;
   }
 
