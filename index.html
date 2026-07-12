@@ -1734,8 +1734,6 @@ const VAPID_KEY = 'BJXB0b2Y437M9d85qY4LIwRAQS0ieyBEmfxM7IO8X6ALyfY2qkCSWr1_VR-3W
 
 // Never auto-prompts — iOS requires a user gesture. Called after permission granted.
 async function subscribePush(){
-  // Diagnostic: log state to Firebase
-  try{const {ref,set,db}=window._fb;await set(ref(db,'debug/pushDiag'),{notifInWindow:('Notification'in window),permission:typeof Notification!=='undefined'?Notification.permission:'N/A',hasMessaging:!!window._fb?.messaging,standalone:navigator.standalone===true||matchMedia('(display-mode: standalone)').matches,ua:navigator.userAgent.slice(0,150),ts:Date.now()});}catch(_){}
   if(!('Notification' in window)||Notification.permission!=='granted'||!window._fb?.messaging)return;
   try{
     let deviceId=localStorage.getItem('young_device_id');
@@ -1743,16 +1741,11 @@ async function subscribePush(){
 
     const {messaging,getToken,onMessage,ref,set,db}=window._fb;
     const timeout=(ms,label)=>new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' timed out after '+ms+'ms')),ms));
-    try{await set(ref(db,'debug/pushTrace'),{step:'awaiting-sw-ready',ts:Date.now()});}catch(_){}
     const swReg=await Promise.race([navigator.serviceWorker.ready,timeout(8000,'serviceWorker.ready')]);
-    try{await set(ref(db,'debug/pushTrace'),{step:'sw-ready',swState:swReg?.active?.state||'unknown',ts:Date.now()});}catch(_){}
     const token=await Promise.race([getToken(messaging,{
       vapidKey:VAPID_KEY,
       serviceWorkerRegistration:swReg,
     }),timeout(10000,'getToken')]);
-    try{await set(ref(db,'debug/pushTrace'),{step:'got-token',hasToken:!!token,ts:Date.now()});}catch(_){}
-    // Log token result for debugging
-    try{const {ref:r2,set:s2,db:d2}=window._fb;await s2(r2(d2,'debug/tokenResult'),{token:token?token.slice(0,30)+'...':'NULL',ts:Date.now()});}catch(_){}
     if(token)await set(ref(db,`fcmTokens/${deviceId}`),{
       token,
       person: currentUser?.name||'Guest',
@@ -1769,11 +1762,6 @@ async function subscribePush(){
   }catch(e){
     console.warn('Push subscription failed:',e);
     showToast('Push reg failed: '+e.message);
-    // Log error to Firebase for remote debugging
-    try{
-      const {ref,set,db}=window._fb;
-      set(ref(db,'debug/pushError'),{msg:e.message,stack:(e.stack||'').slice(0,500),ts:Date.now(),ua:navigator.userAgent.slice(0,200)});
-    }catch(_){}
   }
 }
 
@@ -2715,6 +2703,15 @@ function closeFamilyAlertOverlay(){
   const timerEl=document.getElementById('tv-alert-timer');
   if(timerEl)timerEl.style.display='none';
   document.getElementById('alert-overlay').classList.remove('open');
+}
+function showToast(msg,duration=3000){
+  let el=document.getElementById('toast-msg');
+  if(!el){el=document.createElement('div');el.id='toast-msg';
+    el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999;pointer-events:none;transition:opacity .3s;max-width:90vw;text-align:center;';
+    document.body.appendChild(el);}
+  el.textContent=msg;el.style.opacity='1';
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>{el.style.opacity='0';},duration);
 }
 function showFamilyAlertOverlay(id,alert){
   currentAlertId=id;

@@ -46,20 +46,6 @@ exports.sendFamilyAlertPush = onValueCreated(
       },
     });
 
-    // Log FCM response to Firebase for debugging
-    const summary = {
-      ts: Date.now(),
-      tokenCount: tokens.length,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-      responses: response.responses.map((r, i) => ({
-        token: tokens[i].slice(0, 20),
-        success: r.success,
-        error: r.error?.message || null,
-      })),
-    };
-    await db.ref('debug/fcmResponse').set(summary);
-
     // Remove tokens that are no longer valid
     const badKeys = Object.entries(tokensObj)
       .filter(([, v]) => {
