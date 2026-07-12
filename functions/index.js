@@ -21,19 +21,44 @@ exports.sendFamilyAlertPush = onValueCreated(
       .filter(Boolean);
     if (!tokens.length) return;
 
+    const title = `${alert.emoji || '🔔'} ${alert.label}`;
+    const body  = `${alert.triggeredBy} needs a hand — tap to respond`;
+
     const response = await getMessaging().sendEachForMulticast({
       tokens,
+      // notification field required for iOS to show the push when app is closed
+      notification: { title, body },
       data: {
-        title: `${alert.emoji || '🔔'} ${alert.label}`,
-        body:  `${alert.triggeredBy} needs a hand — tap to respond`,
-        type:  alert.type || 'alert',
+        title,
+        body,
+        type:    alert.type || 'alert',
         alertId: event.params.alertId,
       },
       webpush: {
         headers: { Urgency: 'high', TTL: '600' },
+        notification: {
+          title,
+          body,
+          icon:  'https://acmdad17.github.io/youngfamilychoreapp/icon-192.png',
+          badge: 'https://acmdad17.github.io/youngfamilychoreapp/icon-192.png',
+        },
         fcmOptions: { link: 'https://acmdad17.github.io/youngfamilychoreapp/' },
       },
     });
+
+    // Log FCM response to Firebase for debugging
+    const summary = {
+      ts: Date.now(),
+      tokenCount: tokens.length,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      responses: response.responses.map((r, i) => ({
+        token: tokens[i].slice(0, 20),
+        success: r.success,
+        error: r.error?.message || null,
+      })),
+    };
+    await db.ref('debug/fcmResponse').set(summary);
 
     // Remove tokens that are no longer valid
     const badKeys = Object.entries(tokensObj)

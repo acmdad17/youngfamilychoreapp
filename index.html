@@ -1742,10 +1742,15 @@ async function subscribePush(){
     if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem('young_device_id',deviceId);}
 
     const {messaging,getToken,onMessage,ref,set,db}=window._fb;
-    const token=await getToken(messaging,{
+    const timeout=(ms,label)=>new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' timed out after '+ms+'ms')),ms));
+    try{await set(ref(db,'debug/pushTrace'),{step:'awaiting-sw-ready',ts:Date.now()});}catch(_){}
+    const swReg=await Promise.race([navigator.serviceWorker.ready,timeout(8000,'serviceWorker.ready')]);
+    try{await set(ref(db,'debug/pushTrace'),{step:'sw-ready',swState:swReg?.active?.state||'unknown',ts:Date.now()});}catch(_){}
+    const token=await Promise.race([getToken(messaging,{
       vapidKey:VAPID_KEY,
-      serviceWorkerRegistration:await navigator.serviceWorker.ready,
-    });
+      serviceWorkerRegistration:swReg,
+    }),timeout(10000,'getToken')]);
+    try{await set(ref(db,'debug/pushTrace'),{step:'got-token',hasToken:!!token,ts:Date.now()});}catch(_){}
     // Log token result for debugging
     try{const {ref:r2,set:s2,db:d2}=window._fb;await s2(r2(d2,'debug/tokenResult'),{token:token?token.slice(0,30)+'...':'NULL',ts:Date.now()});}catch(_){}
     if(token)await set(ref(db,`fcmTokens/${deviceId}`),{
