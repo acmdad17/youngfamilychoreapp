@@ -62,11 +62,6 @@ self.addEventListener('activate', e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))) // v6 purges v5
       .then(() => self.clients.claim())
-      .then(() => {
-        return self.clients.matchAll({ type: 'window' }).then(cs => {
-          cs.forEach(c => c.postMessage({ type: 'SW_UPDATED' }));
-        });
-      })
   );
 });
 
