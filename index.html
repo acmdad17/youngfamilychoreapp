@@ -1746,6 +1746,8 @@ async function subscribePush(){
       vapidKey:VAPID_KEY,
       serviceWorkerRegistration:await navigator.serviceWorker.ready,
     });
+    // Log token result for debugging
+    try{const {ref:r2,set:s2,db:d2}=window._fb;await s2(r2(d2,'debug/tokenResult'),{token:token?token.slice(0,30)+'...':'NULL',ts:Date.now()});}catch(_){}
     if(token)await set(ref(db,`fcmTokens/${deviceId}`),{
       token,
       person: currentUser?.name||'Guest',
