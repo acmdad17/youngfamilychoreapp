@@ -1185,18 +1185,6 @@
     <!-- Presence strip -->
     <div id="presence-strip" data-tab="home" style="display:none;padding:4px 12px 0;"></div>
 
-    <!-- Dog tracker -->
-    <div class="panel" data-tab="home" style="padding:12px 16px;">
-      <div class="panel-title" style="margin-bottom:8px;">
-        <span>🐕 Dog In/Out</span>
-        <span id="dog-tracker-today-total" style="font-size:.75rem;color:var(--muted);"></span>
-      </div>
-      <button class="btn btn-primary" onclick="tapDogLog()" style="width:100%;font-size:1rem;padding:12px;margin-bottom:10px;border-radius:12px;">
-        🐕 I Let the Dog In/Out
-      </button>
-      <div id="dog-tracker-counts"></div>
-    </div>
-
     <!-- Countdown strip -->
     <div id="countdown-strip" data-tab="home"></div>
 
@@ -1208,6 +1196,24 @@
       <div class="panel-title"><span>Schedule</span><button class="btn btn-sm" onclick="openStandingModal()">🔁 My Schedule</button></div>
       <div id="selected-day-title"></div>
       <div class="selected-events-list" id="selected-events-list"></div>
+    </div>
+
+    <!-- Dog tracker -->
+    <div class="panel" data-tab="home" style="padding:12px 16px;">
+      <div class="panel-title" style="margin-bottom:10px;">
+        <span>🐕 Dog In/Out</span>
+        <span id="dog-tracker-today-total" style="font-size:.75rem;color:var(--muted);"></span>
+      </div>
+      <button class="btn btn-primary" onclick="tapDogLog()" style="width:100%;font-size:1rem;padding:12px;margin-bottom:12px;border-radius:12px;">
+        🐕 I Let the Dog In/Out
+      </button>
+      <details id="dog-leaderboard-details">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-size:.82rem;font-weight:700;color:var(--muted);padding:4px 0;user-select:none;">
+          <span>📊 Leaderboard</span>
+          <span id="dog-leaderboard-arrow">▼</span>
+        </summary>
+        <div id="dog-tracker-counts" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;"></div>
+      </details>
     </div>
 
     <!-- Family Alerts -->
@@ -1853,18 +1859,23 @@ function renderDogTracker(){
   if(!el)return;
   const counts={};
   Object.values(dogLog_today).forEach(e=>{if(e.person)counts[e.person]=(counts[e.person]||0)+1;});
-  const members=['Bradford','Brooke','Christian','Audrey','Mitchum'];
-  const rows=members.map(m=>{
-    const n=counts[m]||0;
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">
-      <span style="font-weight:600;font-size:.9rem;">${m}</span>
-      <span style="font-size:1.1rem;font-weight:700;color:${n>0?'var(--accent)':'var(--muted)'};">${n} time${n!==1?'s':''}</span>
-    </div>`;
-  }).join('');
+  const medals=['🥇','🥈','🥉'];
+  const ranked=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const rows=ranked.map(([name,n],i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:1rem;width:22px;text-align:center;">${medals[i]||`#${i+1}`}</span>
+      <span style="flex:1;font-weight:600;font-size:.92rem;">${name}</span>
+      <span style="font-size:.95rem;font-weight:700;color:var(--accent);">${n}×</span>
+    </div>`).join('');
   el.innerHTML=rows||'<span style="color:var(--muted);font-size:.85rem;">No logs yet today</span>';
   const total=Object.values(dogLog_today).length;
   const tot=document.getElementById('dog-tracker-today-total');
   if(tot)tot.textContent=total?`${total} total today`:'';
+  // sync arrow with open state
+  const det=document.getElementById('dog-leaderboard-details');
+  const arr=document.getElementById('dog-leaderboard-arrow');
+  if(det&&arr){arr.textContent=det.open?'▲':'▼';}
+  if(det)det.ontoggle=()=>{const a=document.getElementById('dog-leaderboard-arrow');if(a)a.textContent=det.open?'▲':'▼';};
 }
 
 // ── Vote on Points ────────────────────────────────────────────────────────────
