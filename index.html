@@ -572,10 +572,7 @@
         "pres    pres    pres"
         "week    week    week"
         "alerts  alerts  alerts"
-        "day     chores  members"
-        "meals   chores  members"
-        "meals   chores  points"
-        "grocery ha      ha";
+        "col-l   col-c   col-r";
       align-items:start;
       max-width:1440px;
       gap:14px;
@@ -585,13 +582,20 @@
     #presence-strip{grid-area:pres;grid-column:unset;padding:0;}
     .week-strip{grid-area:week;}
     .alerts-panel{grid-area:alerts;}
-    .selected-day-panel{grid-area:day;}
-    .chores-panel{grid-area:chores;}
-    .meals-panel{grid-area:meals;}
-    .members-panel{grid-area:members;}
-    .points-panel{grid-area:points;}
-    .grocery-panel{grid-area:grocery;}
-    .ha-panel{grid-area:ha;}
+    #layout-col-left{grid-area:col-l;display:flex;flex-direction:column;gap:14px;min-width:0;}
+    #layout-col-center{grid-area:col-c;display:flex;flex-direction:column;gap:14px;min-width:0;}
+    #layout-col-right{grid-area:col-r;display:flex;flex-direction:column;gap:14px;min-width:0;}
+    /* Panels inside columns lose their standalone grid placements */
+    .selected-day-panel,.chores-panel,.meals-panel,.members-panel,.points-panel,.grocery-panel,.ha-panel{grid-area:unset;grid-column:unset;}
+    /* Drag handle */
+    .panel-drag-handle{display:none;}
+    body.layout-unlocked .panel-drag-handle{display:flex;align-items:center;cursor:grab;color:var(--muted);font-size:1rem;padding:0 2px;user-select:none;}
+    body.layout-unlocked .panel-drag-handle:active{cursor:grabbing;}
+    body.layout-unlocked #layout-col-left .panel-title,
+    body.layout-unlocked #layout-col-center .panel-title,
+    body.layout-unlocked #layout-col-right .panel-title{cursor:grab;}
+    .sortable-ghost{opacity:.35;border:2px dashed var(--accent)!important;}
+    #layout-btn{display:flex;}
   }
 
   /* Tablet */
@@ -1155,6 +1159,7 @@
       </div>
       <button class="notif-btn" id="notif-btn" onclick="requestNotifications()">🔔 Alerts</button>
       <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openIcalModal()">📅 Cals</button>
+      <button class="btn" id="layout-btn" onclick="toggleLayoutLock()" style="font-size:.72rem;padding:4px 10px;display:none;" title="Rearrange panels">🔒 Layout</button>
       <button class="btn btn-primary" onclick="openModal()">+ Event</button>
     </div>
   </header>
@@ -1192,14 +1197,14 @@
     <div class="week-strip" id="week-strip" data-tab="home"></div>
 
     <!-- Selected Day -->
-    <div class="panel selected-day-panel" data-tab="home">
+    <div class="panel selected-day-panel" id="panel-schedule" data-tab="home">
       <div class="panel-title"><span>Schedule</span><button class="btn btn-sm" onclick="openStandingModal()">🔁 My Schedule</button></div>
       <div id="selected-day-title"></div>
       <div class="selected-events-list" id="selected-events-list"></div>
     </div>
 
     <!-- Dog tracker -->
-    <div class="panel" data-tab="home" style="padding:12px 16px;">
+    <div class="panel" id="panel-dog" data-tab="home" style="padding:12px 16px;">
       <div class="panel-title" style="margin-bottom:10px;">
         <span>🐕 Dog In/Out</span>
         <span id="dog-tracker-today-total" style="font-size:.75rem;color:var(--muted);"></span>
@@ -1236,7 +1241,7 @@
     </div>
 
     <!-- Chores -->
-    <div class="panel chores-panel" data-tab="chores">
+    <div class="panel chores-panel" id="panel-chores" data-tab="chores">
       <div class="panel-title">
         <span>Chores</span>
         <div style="display:flex;gap:6px;">
@@ -1251,7 +1256,7 @@
     </div>
 
     <!-- Meals -->
-    <div class="panel meals-panel" data-tab="food">
+    <div class="panel meals-panel" id="panel-meals" data-tab="food">
       <div class="panel-title">
         <span>Meal Plan</span>
         <span style="font-size:var(--text-xs);color:var(--muted);">Dinner</span>
@@ -1260,7 +1265,7 @@
     </div>
 
     <!-- Members -->
-    <div class="panel members-panel" data-tab="family">
+    <div class="panel members-panel" id="panel-members" data-tab="family">
       <div class="panel-title"><span>Family</span></div>
       <div class="members-grid" id="members-grid"></div>
       <div class="device-section" id="device-section">
@@ -1273,7 +1278,7 @@
     </div>
 
     <!-- Points / Rewards / Allowance -->
-    <div class="panel points-panel" data-tab="family">
+    <div class="panel points-panel" id="panel-points" data-tab="family">
       <div class="panel-title"><span>Points</span></div>
       <div class="tab-btns">
         <button class="tab-btn active" onclick="setPointsTab('points',this)">Points</button>
@@ -1285,7 +1290,7 @@
     </div>
 
     <!-- Grocery -->
-    <div class="panel grocery-panel" data-tab="food">
+    <div class="panel grocery-panel" id="panel-grocery" data-tab="food">
       <div class="panel-title">
         <span>Groceries</span>
         <span id="grocery-count" style="font-size:var(--text-xs);font-weight:600;color:var(--muted)"></span>
@@ -1306,7 +1311,7 @@
     </div>
 
     <!-- Home Assistant -->
-    <div class="panel ha-panel" data-tab="family">
+    <div class="panel ha-panel" id="panel-ha" data-tab="family">
       <div class="panel-title">
         <span>Home Assistant</span>
         <div style="display:flex;align-items:center;gap:10px;">
@@ -1553,22 +1558,31 @@ function subscribeAll(){
         if((now-(t.triggeredAt||0))>TEN_MIN) return;
         // Handle presence updates (type=presence → write to presence/ not familyAlerts)
         if(t.type==='presence'&&t.label){
-          window._fb.update(ref(db,`presence/${t.label}`),{
-            state:t.emoji||'not_home',
-            updatedAt:t.triggeredAt||Date.now()
-          });
+          // Only accept known family member labels — a direct write to ha_triggers/
+          // bypasses HA's own validation, so this listener must not trust arbitrary values
+          const safeLabels=PRESENCE_MEMBERS.map(m=>m.key);
+          if(safeLabels.includes(t.label)){
+            window._fb.update(ref(db,`presence/${t.label}`),{
+              state:t.emoji==='home'?'home':'not_home',
+              updatedAt:t.triggeredAt||Date.now()
+            });
+          }
         } else {
-          // Mirror to familyAlerts
+          // Mirror to familyAlerts — only for known alert types; unknown types are dropped
+          // instead of falling back to attacker-controlled emoji/label text
           const typeMap={washer:'laundry',dishwasher:'dishwasher'};
           const appType=typeMap[t.type]||t.type;
-          const at=ALERT_TYPES.find(a=>a.type===appType)||
-                   {type:appType,emoji:t.emoji||'🏠',label:t.label||'Home Assistant Alert',color:'#4fc3f7'};
-          window._fb.set(ref(db,`familyAlerts/ha_${id}`),{
-            type:at.type,label:at.label,emoji:at.emoji,color:at.color,
-            triggeredBy:t.triggeredBy||'Home Assistant',
-            triggeredAt:t.triggeredAt||Date.now(),
-            claimedBy:null,active:true
-          });
+          const at=ALERT_TYPES.find(a=>a.type===appType);
+          if(at){
+            const safeNames=PRESENCE_MEMBERS.map(m=>m.key);
+            const triggeredBy=safeNames.includes(t.triggeredBy)?t.triggeredBy:'Home Assistant';
+            window._fb.set(ref(db,`familyAlerts/ha_${id}`),{
+              type:at.type,label:at.label,emoji:at.emoji,color:at.color,
+              triggeredBy,
+              triggeredAt:t.triggeredAt||Date.now(),
+              claimedBy:null,active:true
+            });
+          }
         }
         // Mark processed so other open clients don't re-mirror
         window._fb.update(ref(db,`ha_triggers/${id}`),{_processed:true});
@@ -3319,10 +3333,85 @@ function initTabs(){
 }
 window.addEventListener('resize',()=>{
   if(window.innerWidth>640){
-    document.querySelectorAll('.main>[data-tab]').forEach(el=>el.style.display='');
+    document.querySelectorAll('.main [data-tab]').forEach(el=>el.style.display='');
     document.querySelectorAll('.tab-bar-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));
   } else {
     switchTab(activeTab);
+  }
+});
+
+// ── Desktop sortable layout ───────────────────────────────────────────────────
+const LAYOUT_KEY='young_layout_v2';
+const LAYOUT_DEFAULT={
+  left:  ['panel-schedule','panel-dog','panel-meals','panel-grocery'],
+  center:['panel-chores'],
+  right: ['panel-members','panel-points','panel-ha'],
+};
+let _layoutUnlocked=false;
+let _sortables=[];
+
+function initDesktopLayout(){
+  if(window.innerWidth<=1000)return;
+  if(typeof Sortable==='undefined'){setTimeout(initDesktopLayout,300);return;}
+  if(document.getElementById('layout-col-left'))return;
+  const main=document.querySelector('.main');
+  if(!main)return;
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}');}catch(e){}
+  const order={
+    left:  saved.left  ||LAYOUT_DEFAULT.left,
+    center:saved.center||LAYOUT_DEFAULT.center,
+    right: saved.right ||LAYOUT_DEFAULT.right,
+  };
+  ['left','center','right'].forEach(col=>{
+    const div=document.createElement('div');
+    div.id=`layout-col-${col}`;
+    main.appendChild(div);
+    order[col].forEach(pid=>{
+      const panel=document.getElementById(pid);
+      if(panel){panel.style.display='';div.appendChild(panel);}
+    });
+    // any panels not in saved order that belong to this col by default
+    LAYOUT_DEFAULT[col].forEach(pid=>{
+      const panel=document.getElementById(pid);
+      if(panel&&panel.parentElement!==div){panel.style.display='';div.appendChild(panel);}
+    });
+    const s=Sortable.create(div,{
+      handle:'.panel-title',
+      animation:150,
+      ghostClass:'sortable-ghost',
+      disabled:true,
+      onEnd:_saveLayoutOrder,
+    });
+    _sortables.push(s);
+  });
+}
+
+function _saveLayoutOrder(){
+  const order={};
+  ['left','center','right'].forEach(col=>{
+    const el=document.getElementById(`layout-col-${col}`);
+    if(el)order[col]=Array.from(el.children).map(c=>c.id).filter(Boolean);
+  });
+  localStorage.setItem(LAYOUT_KEY,JSON.stringify(order));
+}
+
+function toggleLayoutLock(){
+  _layoutUnlocked=!_layoutUnlocked;
+  document.body.classList.toggle('layout-unlocked',_layoutUnlocked);
+  _sortables.forEach(s=>s.option('disabled',!_layoutUnlocked));
+  const btn=document.getElementById('layout-btn');
+  if(btn)btn.textContent=_layoutUnlocked?'🔓 Layout':'🔒 Layout';
+  if(!_layoutUnlocked)showToast('Layout saved');
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  // Load SortableJS then init layout
+  if(window.innerWidth>1000){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js';
+    s.onload=initDesktopLayout;
+    document.head.appendChild(s);
   }
 });
 
