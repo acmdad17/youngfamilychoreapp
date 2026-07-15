@@ -44,9 +44,10 @@ Young family dashboard PWA + Home Assistant integration.
 | `switch.kitchen_switch_1` | Kitchen light |
 | `media_player.everywhere` | All Alexa speakers |
 | `weather.forecast_home` | Outside temp |
-| `camera.homeassistant_local` | Front Porch (wyze-bridge, currently unavailable) |
-| `camera.homeassistant_local_2` | Back Yard / Pet Cam (wyze-bridge, streaming ✓) |
-| `camera.garage` | Garage (RTSP direct — in progress) |
+| `camera.homeassistant_local_2` | Back Yard / Pet Cam (Generic Camera via wyze-bridge RTSP, streaming ✓) |
+| `camera.pool` | Pool Cam (Generic Camera, still image via go2rtc `?src=pool`, streaming ✓) |
+| `camera.homeassistant_local` | Garage (Generic Camera — created, needs Reconfigure when camera online) |
+| `camera.homeassistant_local_3` | Front Porch (Generic Camera — created, needs Reconfigure when camera online) |
 
 ### Automations
 | ID | Alias | Notes |
