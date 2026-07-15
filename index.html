@@ -328,7 +328,6 @@
   .members-panel{--pa:var(--brooke);}
   .points-panel{--pa:var(--accent);}
   .grocery-panel{--pa:var(--audrey);}
-  .ha-panel{--pa:var(--mitchum);}
   .alerts-panel{background:transparent;border:none;box-shadow:none;padding:4px 0;}
   .alerts-panel::before{display:none;}
   .panel-title{font-size:var(--text-xs);font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
@@ -483,21 +482,6 @@
     padding:9px 12px;color:var(--text);font-family:var(--font-body);font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s;}
   .add-grocery-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 
-  /* HA */
-  .ha-panel{grid-column:1/3;}
-  .ha-setup{text-align:center;padding:16px;color:var(--muted);font-size:var(--text-sm);}
-  .ha-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
-  .ha-tile{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);
-    padding:16px 12px;cursor:pointer;transition:all .2s var(--ease);text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;}
-  .ha-tile:hover{transform:translateY(-2px);border-color:var(--secondary);box-shadow:var(--shadow-md);}
-  .ha-tile.on{border-color:var(--accent);background:var(--accent-soft);}
-  .ha-tile.unavailable{opacity:.4;cursor:default;}
-  .ha-icon{font-size:1.8rem;}.ha-name{font-size:var(--text-xs);font-weight:700;}
-  .ha-state{font-size:var(--text-xs);color:var(--muted);text-transform:capitalize;}
-  .ha-state.on{color:var(--accent);}
-  .ha-status{font-size:var(--text-xs);display:flex;align-items:center;gap:5px;}
-  .ha-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
-  .ha-dot.connected{background:var(--primary);}.ha-dot.error{background:var(--danger);}
 
   /* TOAST */
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
@@ -586,7 +570,7 @@
     #layout-col-center{grid-area:col-c;display:flex;flex-direction:column;gap:14px;min-width:0;}
     #layout-col-right{grid-area:col-r;display:flex;flex-direction:column;gap:14px;min-width:0;}
     /* Panels inside columns lose their standalone grid placements */
-    .selected-day-panel,.chores-panel,.meals-panel,.members-panel,.points-panel,.grocery-panel,.ha-panel{grid-area:unset;grid-column:unset;}
+    .selected-day-panel,.chores-panel,.meals-panel,.members-panel,.points-panel,.grocery-panel{grid-area:unset;grid-column:unset;}
     /* Drag handle */
     .panel-drag-handle{display:none;}
     body.layout-unlocked .panel-drag-handle{display:flex;align-items:center;cursor:grab;color:var(--muted);font-size:1rem;padding:0 2px;user-select:none;}
@@ -603,7 +587,7 @@
     .main{grid-template-columns:1fr 1fr;padding:16px;}
     .selected-day-panel{grid-column:1/2;}
     .chores-panel{grid-column:2/3;}
-    .alerts-panel,.meals-panel,.members-panel,.points-panel,.grocery-panel,.ha-panel{grid-column:1/-1;}
+    .alerts-panel,.meals-panel,.members-panel,.points-panel,.grocery-panel{grid-column:1/-1;}
     .day-event-chip{display:none;}
     #my-day-banner,#fb-setup-banner{margin-left:16px;margin-right:16px;}
     #announcements-bar{padding:10px 16px;}
@@ -1000,25 +984,6 @@
   </div>
 </div>
 
-<!-- HA MODAL -->
-<div class="modal-backdrop" id="ha-modal" onclick="closeHAModalBackdrop(event)">
-  <div class="modal">
-    <h2>🏡 Home Assistant</h2>
-    <p style="font-size:.82rem;color:var(--muted);">Enter your Nabu Casa URL and a Long-Lived Access Token.</p>
-    <div class="form-group"><label>Nabu Casa URL</label>
-      <input type="url" id="ha-url-input" placeholder="https://YOUR-ID.ui.nabu.casa">
-    </div>
-    <div class="form-group"><label>Long-Lived Access Token</label>
-      <input type="password" id="ha-token-input" placeholder="Paste your HA token">
-    </div>
-    <p style="font-size:.75rem;color:var(--muted);">HA → Profile → Security → Long-Lived Access Tokens → Create Token</p>
-    <div class="modal-actions">
-      <button class="btn btn-danger" onclick="disconnectHA()">Disconnect</button>
-      <button class="btn" onclick="closeHAModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveHAConfig()">Connect</button>
-    </div>
-  </div>
-</div>
 
 <!-- ICAL MODAL -->
 <div class="modal-backdrop" id="ical-modal" onclick="if(event.target===this)closeIcalModal()">
@@ -1310,23 +1275,6 @@
       <button class="btn btn-danger" style="font-size:.75rem;padding:5px 10px;align-self:flex-start;" onclick="clearGotItems()">Clear checked</button>
     </div>
 
-    <!-- Home Assistant -->
-    <div class="panel ha-panel" id="panel-ha" data-tab="family">
-      <div class="panel-title">
-        <span>Home Assistant</span>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div class="ha-status"><div class="ha-dot" id="ha-dot"></div>
-            <span id="ha-status-text" style="font-size:var(--text-xs);color:var(--muted);font-weight:600;">Not connected</span>
-          </div>
-          <button class="btn" style="font-size:.72rem;padding:4px 10px;" onclick="openHAModal()">⚙️ Setup</button>
-          <button class="btn btn-primary" style="font-size:.72rem;padding:4px 10px;" onclick="refreshHA()">↻ Refresh</button>
-        </div>
-      </div>
-      <div id="ha-content"><div class="ha-setup">
-        Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br>
-        <button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button>
-      </div></div>
-    </div>
   </div>
 
   <!-- BOTTOM TAB BAR -->
@@ -1428,8 +1376,6 @@ const isParent=()=>currentUser&&PARENTS.includes(currentUser.name);
 let currentPointsTab='points';
 let currentLedgerPerson=null;
 let _editingChoreId=null,_editingEventId=null,_editingRewardId=null,_editingCountdownId=null;
-let haConfig=JSON.parse(localStorage.getItem('young_ha_config')||'null');
-let haEntities=[];
 
 // Per-person allowance — synced via Firebase so all devices agree
 function getAllowance(person){return allowance[person]||0;}
@@ -1762,7 +1708,6 @@ function startApp(){
   renderAll();
   fetchWeather(36.3348,-92.3849,false);
   updateNotifBtn(typeof Notification!=='undefined'?Notification.permission:'denied');
-  if(haConfig)refreshHA();else renderHASetup();
   checkDailyReset();
   fetchAllIcalFeeds();
   initTabs();
@@ -3260,64 +3205,6 @@ async function nudgeMember(name,missed){
   showToast(`Nudge sent to ${name}!`);
 }
 
-// ── HOME ASSISTANT ──
-function openHAModal(){
-  if(haConfig){document.getElementById('ha-url-input').value=haConfig.url||'';document.getElementById('ha-token-input').value=haConfig.token||'';}
-  document.getElementById('ha-modal').classList.add('open');
-}
-function closeHAModal(){document.getElementById('ha-modal').classList.remove('open');}
-function closeHAModalBackdrop(e){if(e.target===document.getElementById('ha-modal'))closeHAModal();}
-function saveHAConfig(){
-  const url=document.getElementById('ha-url-input').value.trim().replace(/\/$/,'');
-  const token=document.getElementById('ha-token-input').value.trim();
-  if(!url||!token){showToast('Enter URL and token');return;}
-  haConfig={url,token};localStorage.setItem('young_ha_config',JSON.stringify(haConfig));
-  closeHAModal();refreshHA();
-}
-function disconnectHA(){haConfig=null;localStorage.removeItem('young_ha_config');closeHAModal();renderHASetup();
-  document.getElementById('ha-dot').className='ha-dot';document.getElementById('ha-status-text').textContent='Not connected';}
-function renderHASetup(){document.getElementById('ha-content').innerHTML='<div class="ha-setup">Connect your Nabu Casa account to control lights, locks, thermostats and more.<br><br><button class="btn btn-primary" onclick="openHAModal()">Connect Home Assistant</button></div>';}
-async function refreshHA(){
-  if(!haConfig)return;
-  document.getElementById('ha-status-text').textContent='Connecting...';
-  try{
-    const res=await fetch(haConfig.url+'/api/states',{headers:{'Authorization':'Bearer '+haConfig.token,'Content-Type':'application/json'}});
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const all=await res.json();
-    haEntities=all.filter(e=>['light','switch','lock','climate','cover','binary_sensor','sensor','input_boolean'].includes(e.entity_id.split('.')[0]));
-    document.getElementById('ha-dot').className='ha-dot connected';
-    document.getElementById('ha-status-text').textContent='Connected - '+haEntities.length+' entities';
-    renderHATiles();
-  }catch(err){
-    document.getElementById('ha-dot').className='ha-dot error';
-    document.getElementById('ha-status-text').textContent='Connection failed';
-    document.getElementById('ha-content').innerHTML='<div class="ha-setup">Could not connect.<br><span style="color:var(--danger);font-size:var(--text-xs);">'+err.message+'</span><br><br><button class="btn btn-primary" onclick="openHAModal()">Try Again</button></div>';
-  }
-}
-function renderHATiles(){
-  const priority=['light','switch','lock','climate','cover'];
-  const sorted=[...haEntities].sort((a,b)=>{const ia=priority.indexOf(a.entity_id.split('.')[0]),ib=priority.indexOf(b.entity_id.split('.')[0]);return(ia<0?99:ia)-(ib<0?99:ib);});
-  document.getElementById('ha-content').innerHTML='<div class="ha-grid">'+sorted.slice(0,12).map(haTile).join('')+'</div>'+(haEntities.length>12?'<div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:8px;">Showing 12 of '+haEntities.length+'</div>':'');
-}
-function haTile(entity){
-  const domain=entity.entity_id.split('.')[0],state=entity.state;
-  const name=entity.attributes.friendly_name||entity.entity_id;
-  const isOn=state==='on'||state==='unlocked'||state==='open'||state==='heating'||state==='cooling';
-  const unavail=state==='unavailable'||state==='unknown';
-  const canToggle=['light','switch','input_boolean','cover'].includes(domain);
-  return'<div class="ha-tile'+(isOn?' on':'')+(unavail?' unavailable':'')+'" '+(canToggle&&!unavail?'onclick="haToggle(\''+entity.entity_id+'\',\''+domain+'\',\''+state+'\')"':'')+'>'+
-    '<div class="ha-icon">'+haIcon(domain,state,entity.attributes)+'</div>'+
-    '<div class="ha-name">'+(name.length>18?name.slice(0,16)+'...':name)+'</div>'+
-    '<div class="ha-state '+(isOn?'on':'')+'">'+haStateLabel(domain,state,entity.attributes)+'</div></div>';
-}
-function haIcon(d,s,a){const on=s==='on'||s==='open'||s==='unlocked';if(d==='light')return on?'💡':'🔦';if(d==='switch')return on?'🔵':'⚪';if(d==='lock')return s==='locked'?'🔒':'🔓';if(d==='climate')return a.hvac_action==='heating'?'🔥':a.hvac_action==='cooling'?'❄️':'🌡️';if(d==='cover')return on?'⬆️':'⬇️';if(d==='binary_sensor')return on?'🟢':'⚫';if(d==='sensor')return'📊';return'🏠';}
-function haStateLabel(d,s,a){if(d==='climate')return a.current_temperature?a.current_temperature+' to '+(a.temperature||'?')+' target':s;if(d==='sensor')return s+(a.unit_of_measurement||'');if(d==='lock')return s==='locked'?'Locked':'Unlocked';return s;}
-async function haToggle(entityId,domain,cur){
-  if(!haConfig)return;
-  const svc=domain==='cover'?(cur==='open'?'close_cover':'open_cover'):(cur==='on'?'turn_off':'turn_on');
-  try{await fetch(haConfig.url+'/api/services/'+domain+'/'+svc,{method:'POST',headers:{'Authorization':'Bearer '+haConfig.token,'Content-Type':'application/json'},body:JSON.stringify({entity_id:entityId})});setTimeout(refreshHA,800);}
-  catch{showToast('Could not control device');}
-}
 
 function switchTab(tab){
   activeTab=tab;
@@ -3345,7 +3232,7 @@ const LAYOUT_KEY='young_layout_v2';
 const LAYOUT_DEFAULT={
   left:  ['panel-schedule','panel-dog','panel-meals','panel-grocery'],
   center:['panel-chores'],
-  right: ['panel-members','panel-points','panel-ha'],
+  right: ['panel-members','panel-points'],
 };
 let _layoutUnlocked=false;
 let _sortables=[];
